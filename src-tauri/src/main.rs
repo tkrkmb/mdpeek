@@ -70,6 +70,20 @@ impl Documents {
     }
 }
 
+/// 起動直後の取りこぼしに備え、最新のカーソル行を保持する
+#[derive(Default)]
+pub struct Cursors(Mutex<Option<Cursor>>);
+
+impl Cursors {
+    fn accept(&self, cursor: Cursor) {
+        *self.0.lock().expect("cursors lock") = Some(cursor);
+    }
+
+    fn current(&self) -> Option<Cursor> {
+        *self.0.lock().expect("cursors lock")
+    }
+}
+
 /// Neovimが先に終了して標準エラー出力のパイプが閉じていても、
 /// 書き込みの失敗でパニックしないようにする。
 fn report(message: &str) {
@@ -84,12 +98,19 @@ pub fn publish(app: &AppHandle, document: Document) {
 }
 
 pub fn publish_cursor(app: &AppHandle, cursor: Cursor) {
+    app.state::<Cursors>().accept(cursor);
     let _ = app.emit(CURSOR_EVENT, cursor);
 }
 
 #[tauri::command]
 fn current_document(documents: tauri::State<'_, Documents>) -> Option<Document> {
     documents.current()
+}
+
+/// 起動直後に取りこぼしたカーソル行を、フロントエンドが拾い直す。
+#[tauri::command]
+fn current_cursor(cursors: tauri::State<'_, Cursors>) -> Option<Cursor> {
+    cursors.current()
 }
 
 /// プレビュー側の修飾クリックを、Neovimのカーソル移動に変える。
@@ -157,8 +178,14 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Documents::default())
+        .manage(Cursors::default())
         .manage(Session::default())
-        .invoke_handler(tauri::generate_handler![current_document, resolve_image, jump])
+        .invoke_handler(tauri::generate_handler![
+            current_document,
+            current_cursor,
+            resolve_image,
+            jump
+        ])
         .setup(move |app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -176,7 +203,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_args, Document, Documents};
+    use super::{parse_args, Cursors, Cursor, Document, Documents};
 
     fn document(generation: u64, version: u64) -> Document {
         Document {
@@ -212,5 +239,22 @@ mod tests {
         assert!(!documents.accept(document(1, 0)));
         assert!(documents.accept(document(1, 2)));
         assert_eq!(documents.current().expect("a document").version, 2);
+    }
+
+    #[test]
+    fn keeps_the_latest_cursor() {
+        let cursors = Cursors::default();
+        assert!(cursors.current().is_none());
+        cursors.accept(Cursor {
+            generation: 1,
+            line: 10,
+        });
+        cursors.accept(Cursor {
+            generation: 1,
+            line: 42,
+        });
+        let cursor = cursors.current().expect("a cursor");
+        assert_eq!(cursor.generation, 1);
+        assert_eq!(cursor.line, 42);
     }
 }

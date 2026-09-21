@@ -35,8 +35,8 @@ let shownVersion = -1;
 let table: Block[] = [];
 /** 描画（画像と図を含む）が終わるまで true */
 let rendering = false;
-/** 描画を待っている間に届いた、いちばん新しいカーソル行 */
-let pendingLine: number | null = null;
+/** 描画を待っている間に届いた、いちばん新しいカーソル（世代付き） */
+let pending: { gen: number; line: number } | null = null;
 
 function isCurrent(version: number): () => boolean {
   return () => version === shownVersion;
@@ -80,12 +80,25 @@ function followCursor(line: number): void {
   window.scrollTo({ top, behavior: "instant" });
 }
 
-function applyPendingCursor(): void {
-  if (pendingLine === null) {
+function receiveCursor(gen: number, line: number): void {
+  if (rendering || shownGen === -1) {
+    // 最新のものだけを保持し、描画が完了してから適用する
+    pending = { gen, line };
     return;
   }
-  const line = pendingLine;
-  pendingLine = null;
+  if (gen !== shownGen) {
+    return;
+  }
+  followCursor(line);
+}
+
+function applyPendingCursor(): void {
+  if (pending === null || pending.gen !== shownGen) {
+    pending = null;
+    return;
+  }
+  const line = pending.line;
+  pending = null;
   followCursor(line);
 }
 
@@ -221,16 +234,13 @@ void listen<Document>("mdpeek://document", (event) => {
 });
 
 void listen<CursorEvent>("mdpeek://cursor", (event) => {
-  if (event.payload.gen !== shownGen) {
-    return;
-  }
-  if (rendering) {
-    // 最新のものだけを保持し、描画が完了してから適用する
-    pendingLine = event.payload.line;
-    return;
-  }
-  followCursor(event.payload.line);
+  receiveCursor(event.payload.gen, event.payload.line);
 });
 
-// 起動直後に取りこぼした本文を拾う
+// 起動直後に取りこぼした本文とカーソル行を拾う
 void invoke<Document | null>("current_document").then(render);
+void invoke<CursorEvent | null>("current_cursor").then((cursor) => {
+  if (cursor !== null) {
+    receiveCursor(cursor.gen, cursor.line);
+  }
+});
