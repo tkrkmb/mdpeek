@@ -1,7 +1,10 @@
+mod image;
 mod nvim;
 mod render;
 
 use std::sync::Mutex;
+
+use std::path::Path;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -62,6 +65,30 @@ fn current_document(documents: tauri::State<'_, Documents>) -> Option<Document> 
     documents.current()
 }
 
+/// 相対パスの画像を、文書のディレクトリを基準に解決する。
+/// 解決できたファイルだけを、1つずつassetプロトコルのスコープに加える。
+#[tauri::command]
+fn resolve_image(
+    app: AppHandle,
+    documents: tauri::State<'_, Documents>,
+    path: String,
+    version: u64,
+) -> Result<String, String> {
+    let document = documents.current().ok_or_else(|| "no document".to_string())?;
+    if document.version != version {
+        return Err("the document has moved on".to_string());
+    }
+    let base = Path::new(&document.path)
+        .parent()
+        .ok_or_else(|| "the document has no directory".to_string())?;
+
+    let resolved = image::resolve(base, &path)?;
+    app.asset_protocol_scope()
+        .allow_file(&resolved)
+        .map_err(|err| format!("cannot allow {}: {err}", resolved.display()))?;
+    Ok(resolved.to_string_lossy().into_owned())
+}
+
 fn parse_args(argv: impl Iterator<Item = String>) -> Result<Args, String> {
     let mut socket = None;
     let mut token = None;
@@ -89,8 +116,9 @@ fn main() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .manage(Documents::default())
-        .invoke_handler(tauri::generate_handler![current_document])
+        .invoke_handler(tauri::generate_handler![current_document, resolve_image])
         .setup(move |app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
