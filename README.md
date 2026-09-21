@@ -37,15 +37,47 @@ Tauri CLIはCargoで導入する。
 cargo install tauri-cli --locked --version "^2.0"
 ```
 
+## Releaseから入手する
+
+自分でビルドしない場合は、[Releases](https://github.com/tkrkmb/mdpeek/releases)から実行ファイルを取得する。Linux（x86_64）と、macOS（IntelとApple Siliconの両方で動く）を置いている。
+
+```sh
+# 例：macOS版の v0.1.0
+curl -LO https://github.com/tkrkmb/mdpeek/releases/download/v0.1.0/mdpeek-v0.1.0-universal-macos.tar.gz
+tar -xzf mdpeek-v0.1.0-universal-macos.tar.gz
+mkdir -p ~/bin && mv mdpeek-v0.1.0-universal-macos/mdpeek ~/bin/
+```
+
+署名も公証もしていないため、**ブラウザでダウンロードした場合**は、macOSの隔離属性を外す必要がある。上の `curl` で取得したときは付かない。
+
+```sh
+xattr -dr com.apple.quarantine ~/bin/mdpeek
+```
+
+Linuxで使う場合は、`webkit2gtk4.1` などの実行時ライブラリが必要になる（上のDNFの行で入る）。macOSはOS標準のWebViewを使うので、追加の導入は要らない。
+
+Neovim側は、GitHubから直接入れられる。lazy.nvim の場合:
+
+```lua
+{
+  "tkrkmb/mdpeek",
+  config = function()
+    require("mdpeek").setup({ bin = vim.fn.expand("~/bin/mdpeek") })
+  end,
+}
+```
+
 ## ビルド
 
 ```sh
-git clone <このリポジトリ> mdpeek
+git clone https://github.com/tkrkmb/mdpeek.git
 cd mdpeek/ui && npm install
 cd .. && cargo tauri build --no-bundle
 ```
 
 実行ファイルは `src-tauri/target/release/mdpeek` にできる。フロントエンドのビルドは `cargo tauri build` が自動で実行する。
+
+`v` で始まるタグを押すと、GitHub ActionsがLinuxとmacOSの実行ファイルをビルドし、Releaseに添付する。
 
 配布用のパッケージは作らない。この実行ファイルをそのまま使う。
 
