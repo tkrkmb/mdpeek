@@ -11,6 +11,8 @@ use tauri::{AppHandle, Emitter, Manager};
 
 /// 最新の本文をフロントエンドへ届けるイベント名
 const DOCUMENT_EVENT: &str = "mdpeek://document";
+/// カーソル行をフロントエンドへ届けるイベント名
+const CURSOR_EVENT: &str = "mdpeek://cursor";
 
 pub struct Args {
     pub socket: String,
@@ -24,6 +26,27 @@ pub struct Document {
     pub version: u64,
     pub path: String,
     pub html: String,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct Cursor {
+    #[serde(rename = "gen")]
+    pub generation: u64,
+    pub line: u64,
+}
+
+/// ジャンプ要求のために、Neovimとの接続を預かる
+#[derive(Default)]
+pub struct Session(Mutex<Option<nvim::Nvim>>);
+
+impl Session {
+    pub fn open(&self, nvim: nvim::Nvim) {
+        *self.0.lock().expect("session lock") = Some(nvim);
+    }
+
+    fn get(&self) -> Option<nvim::Nvim> {
+        self.0.lock().expect("session lock").clone()
+    }
 }
 
 /// 世代と版が最新の本文だけを保持する
@@ -60,9 +83,25 @@ pub fn publish(app: &AppHandle, document: Document) {
     }
 }
 
+pub fn publish_cursor(app: &AppHandle, cursor: Cursor) {
+    let _ = app.emit(CURSOR_EVENT, cursor);
+}
+
 #[tauri::command]
 fn current_document(documents: tauri::State<'_, Documents>) -> Option<Document> {
     documents.current()
+}
+
+/// プレビュー側の修飾クリックを、Neovimのカーソル移動に変える。
+#[tauri::command]
+async fn jump(
+    session: tauri::State<'_, Session>,
+    gen: u64,
+    version: u64,
+    line: u64,
+) -> Result<(), String> {
+    let nvim = session.get().ok_or_else(|| "not connected".to_string())?;
+    nvim::jump(nvim, gen, version, line).await
 }
 
 /// 相対パスの画像を、文書のディレクトリを基準に解決する。
@@ -118,7 +157,8 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Documents::default())
-        .invoke_handler(tauri::generate_handler![current_document, resolve_image])
+        .manage(Session::default())
+        .invoke_handler(tauri::generate_handler![current_document, resolve_image, jump])
         .setup(move |app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {

@@ -1,15 +1,16 @@
 use async_trait::async_trait;
 use nvim_rs::{compat::tokio::Compat, create::tokio::new_path, Handler, Neovim, Value};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tokio::{
     io::WriteHalf,
     net::UnixStream,
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
 
-use crate::{render, Args, Document};
+use crate::{render, Args, Cursor, Document, Session};
 
 type Writer = Compat<WriteHalf<UnixStream>>;
+pub type Nvim = Neovim<Writer>;
 
 #[derive(Clone)]
 struct NvimHandler {
@@ -27,6 +28,11 @@ impl Handler for NvimHandler {
             "mdpeek_content" => {
                 if let Some(payload) = args.into_iter().next() {
                     let _ = self.queue.send(payload);
+                }
+            }
+            "mdpeek_cursor" => {
+                if let Some(cursor) = args.first().and_then(cursor_from) {
+                    crate::publish_cursor(&self.app, cursor);
                 }
             }
             "mdpeek_close" => self.app.exit(0),
@@ -86,13 +92,36 @@ pub async fn run(app: AppHandle, args: Args) -> Result<(), String> {
 
     let document =
         document_from(&registered).ok_or_else(|| "register was rejected".to_string())?;
+    // ジャンプ要求に答えられるように、接続を預けておく
+    app.state::<Session>().open(nvim.clone());
     crate::publish(&app, document);
+    if let Some(line) = field(&registered, "line").and_then(Value::as_u64) {
+        crate::publish_cursor(
+            &app,
+            Cursor {
+                generation: document_generation(&registered),
+                line,
+            },
+        );
+    }
 
     // RPCが切断されたら、待ち受けを終える
     io.await
         .map_err(|err| format!("rpc loop stopped: {err}"))?
         .map_err(|err| format!("rpc loop stopped: {err}"))?;
     Ok(())
+}
+
+fn document_generation(value: &Value) -> u64 {
+    field(value, "gen").and_then(Value::as_u64).unwrap_or_default()
+}
+
+/// `mdpeek_cursor` の `{gen, line}` を取り出す。
+fn cursor_from(value: &Value) -> Option<Cursor> {
+    Some(Cursor {
+        generation: field(value, "gen")?.as_u64()?,
+        line: field(value, "line")?.as_u64()?,
+    })
 }
 
 fn field<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
@@ -116,6 +145,17 @@ fn document_from(value: &Value) -> Option<Document> {
         path: field(value, "path")?.as_str()?.to_string(),
         html: render::to_html(&lines.join("\n")),
     })
+}
+
+/// アプリからNeovimへジャンプを要求する。
+pub async fn jump(nvim: Nvim, gen: u64, version: u64, line: u64) -> Result<(), String> {
+    nvim.exec_lua(
+        r#"return require("mdpeek.rpc").jump(...)"#,
+        vec![Value::from(gen), Value::from(version), Value::from(line)],
+    )
+    .await
+    .map(|_| ())
+    .map_err(|err| format!("jump failed: {err}"))
 }
 
 #[cfg(test)]
@@ -145,6 +185,23 @@ mod tests {
         assert_eq!(document.version, 7);
         assert_eq!(document.path, "/tmp/note.md");
         assert!(document.html.contains("title"), "{}", document.html);
+    }
+
+    #[test]
+    fn reads_a_cursor_notification() {
+        let value = Value::Map(vec![
+            entry("gen", Value::from(3u64)),
+            entry("line", Value::from(42u64)),
+        ]);
+        let cursor = super::cursor_from(&value).expect("a cursor");
+        assert_eq!(cursor.generation, 3);
+        assert_eq!(cursor.line, 42);
+    }
+
+    #[test]
+    fn rejects_a_cursor_without_a_line() {
+        let value = Value::Map(vec![entry("gen", Value::from(3u64))]);
+        assert!(super::cursor_from(&value).is_none());
     }
 
     #[test]
