@@ -38,8 +38,36 @@ local function socket()
   return sock
 end
 
+-- 対象バッファの全行を送る。版を1増やす。
+local function send_content()
+  if not (state.chan and state.buf and vim.api.nvim_buf_is_valid(state.buf)) then
+    return
+  end
+  state.version = state.version + 1
+  pcall(vim.rpcnotify, state.chan, "mdpeek_content", {
+    gen = state.gen,
+    version = state.version,
+    path = vim.api.nvim_buf_get_name(state.buf),
+    lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false),
+  })
+end
+
+-- 200msのデバウンスのあとに送る
+local function schedule_content()
+  if not state.content_timer then
+    state.content_timer = vim.uv.new_timer()
+  end
+  state.content_timer:stop()
+  state.content_timer:start(200, 0, vim.schedule_wrap(send_content))
+end
+
 -- Lua側の状態、autocmd、タイマーを解放する。世代と版は増え続けるので戻さない。
 local function release()
+  if state.content_timer then
+    state.content_timer:stop()
+    state.content_timer:close()
+    state.content_timer = nil
+  end
   if state.augroup then
     pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
     state.augroup = nil
@@ -57,6 +85,12 @@ local function set_autocmds(buf)
     pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
   end
   state.augroup = vim.api.nvim_create_augroup("mdpeek", { clear = true })
+  -- 本文が変わったら、デバウンスしてから送る
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    group = state.augroup,
+    buffer = buf,
+    callback = schedule_content,
+  })
   -- 対象バッファが消えたら、:MdPeekClose と同じ処理を行う
   vim.api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
     group = state.augroup,
@@ -114,16 +148,16 @@ function M.open()
     return
   end
 
-  -- 対象を設定する。対象世代を1増やし、本文もこの時点の版として送る。
+  -- 対象を設定する。対象世代を1増やす。
   state.buf = buf
   state.win = win
   state.gen = state.gen + 1
-  state.version = state.version + 1
   state.last_line = nil
   set_autocmds(buf)
 
   if state.proc then
-    -- すでにアプリが動いているので、起動しない
+    -- すでにアプリが動いているので、起動はせず、本文だけをすぐ送る
+    send_content()
     return
   end
 

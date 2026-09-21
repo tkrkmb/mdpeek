@@ -10,4 +10,5 @@ return {
   gen = 0, -- 対象世代
   version = 0, -- 版
   last_line = nil, -- 直前に送ったカーソル行
+  content_timer = nil, -- 本文送信のデバウンス用タイマー
 }
