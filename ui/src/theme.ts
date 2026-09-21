@@ -1,5 +1,5 @@
-import lightHref from "github-markdown-css/github-markdown-light.css?url";
-import darkHref from "github-markdown-css/github-markdown-dark.css?url";
+import lightCss from "github-markdown-css/github-markdown-light.css?inline";
+import darkCss from "github-markdown-css/github-markdown-dark.css?inline";
 
 export type Theme = "system" | "light" | "dark";
 export type Appearance = "light" | "dark";
@@ -7,16 +7,23 @@ export type Appearance = "light" | "dark";
 const STORAGE_KEY = "mdpeek.theme";
 const ORDER: Theme[] = ["system", "light", "dark"];
 
-function stylesheet(href: string): HTMLLinkElement {
-  const element = document.createElement("link");
-  element.rel = "stylesheet";
-  element.href = href;
-  document.head.appendChild(element);
-  return element;
+/**
+ * 2つのテーマを1枚のスタイルに入れ、`:root[data-theme]` で選ぶ。
+ * スタイルシートの有効・無効を切り替えると、WebKitでは切り替えが1回分遅れて
+ * 見た目が崩れるため、切り替えは属性の書き換えだけで済ませる。
+ * `:where()` で包むのは、詳細度を `.markdown-body` のままに保つため。
+ */
+function scoped(css: string, shown: Appearance): string {
+  return css.replaceAll(".markdown-body", `:where(:root[data-theme="${shown}"]) .markdown-body`);
 }
 
-const light = stylesheet(lightHref);
-const dark = stylesheet(darkHref);
+function stylesheet(): void {
+  const element = document.createElement("style");
+  element.textContent = `${scoped(lightCss, "light")}\n${scoped(darkCss, "dark")}`;
+  document.head.appendChild(element);
+}
+
+stylesheet();
 const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
 
 const listeners: (() => void)[] = [];
@@ -50,10 +57,7 @@ export function appearance(): Appearance {
 }
 
 function apply(): void {
-  const shown = appearance();
-  light.disabled = shown === "dark";
-  dark.disabled = shown === "light";
-  document.documentElement.dataset.theme = shown;
+  document.documentElement.dataset.theme = appearance();
   for (const listener of listeners) {
     listener();
   }
