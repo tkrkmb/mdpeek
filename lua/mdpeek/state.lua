@@ -11,4 +11,6 @@ return {
   version = 0, -- 版
   last_line = nil, -- 直前に送ったカーソル行
   content_timer = nil, -- 本文送信のデバウンス用タイマー
+  cursor_timer = nil, -- カーソル送信のスロットル用タイマー
+  pending_line = nil, -- スロットル中に届いた、いちばん新しい行
 }

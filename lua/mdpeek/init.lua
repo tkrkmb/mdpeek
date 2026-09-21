@@ -52,6 +52,59 @@ local function send_content()
   })
 end
 
+-- カーソル行を送る。直前に送った行と同じなら送らない。
+local function send_cursor(line)
+  if not (state.chan and line and line ~= state.last_line) then
+    return
+  end
+  state.last_line = line
+  pcall(vim.rpcnotify, state.chan, "mdpeek_cursor", { gen = state.gen, line = line })
+end
+
+local function stop_cursor_timer()
+  if state.cursor_timer then
+    state.cursor_timer:stop()
+    state.cursor_timer:close()
+    state.cursor_timer = nil
+  end
+  state.pending_line = nil
+end
+
+-- スロットルの周期ごとに、溜まっているいちばん新しい行を送る
+local function flush_cursor()
+  local line = state.pending_line
+  state.pending_line = nil
+  if line == nil then
+    stop_cursor_timer()
+    return
+  end
+  send_cursor(line)
+end
+
+-- 50ms間隔のスロットルでカーソル行を送る
+local function schedule_cursor()
+  if not (state.win and vim.api.nvim_win_is_valid(state.win)) then
+    return
+  end
+  local ok, position = pcall(vim.api.nvim_win_get_cursor, state.win)
+  if not ok then
+    return
+  end
+  local line = position[1]
+  if line == state.last_line then
+    return
+  end
+
+  if state.cursor_timer then
+    -- 周期の途中なので、いちばん新しい行だけを覚えておく
+    state.pending_line = line
+    return
+  end
+  send_cursor(line)
+  state.cursor_timer = vim.uv.new_timer()
+  state.cursor_timer:start(50, 50, vim.schedule_wrap(flush_cursor))
+end
+
 -- 200msのデバウンスのあとに送る
 local function schedule_content()
   if not state.content_timer then
@@ -63,6 +116,7 @@ end
 
 -- Lua側の状態、autocmd、タイマーを解放する。世代と版は増え続けるので戻さない。
 local function release()
+  stop_cursor_timer()
   if state.content_timer then
     state.content_timer:stop()
     state.content_timer:close()
@@ -90,6 +144,24 @@ local function set_autocmds(buf)
     group = state.augroup,
     buffer = buf,
     callback = schedule_content,
+  })
+  -- 対象ウィンドウでカーソルが動いたら、スロットルして送る
+  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+    group = state.augroup,
+    callback = function()
+      if state.win and vim.api.nvim_get_current_win() == state.win then
+        schedule_cursor()
+      end
+    end,
+  })
+  -- 対象ウィンドウが閉じたら、カーソル位置の送信を止める
+  vim.api.nvim_create_autocmd("WinClosed", {
+    group = state.augroup,
+    pattern = tostring(state.win),
+    callback = function()
+      state.win = nil
+      stop_cursor_timer()
+    end,
   })
   -- 対象バッファが消えたら、:MdPeekClose と同じ処理を行う
   vim.api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
