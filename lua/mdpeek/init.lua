@@ -81,6 +81,17 @@ local function flush_cursor()
   send_cursor(line)
 end
 
+-- 対象ウィンドウの、いまのカーソル行を送る
+local function send_cursor_now()
+  if not (state.win and vim.api.nvim_win_is_valid(state.win)) then
+    return
+  end
+  local ok, position = pcall(vim.api.nvim_win_get_cursor, state.win)
+  if ok then
+    send_cursor(position[1])
+  end
+end
+
 -- 50ms間隔のスロットルでカーソル行を送る
 local function schedule_cursor()
   if not (state.win and vim.api.nvim_win_is_valid(state.win)) then
@@ -228,8 +239,9 @@ function M.open()
   set_autocmds(buf)
 
   if state.proc then
-    -- すでにアプリが動いているので、起動はせず、本文だけをすぐ送る
+    -- すでにアプリが動いているので、起動はせず、本文とカーソル行をすぐ送る
     send_content()
+    send_cursor_now()
     return
   end
 

@@ -81,12 +81,13 @@ function followCursor(line: number): void {
 }
 
 function receiveCursor(gen: number, line: number): void {
-  if (rendering || shownGen === -1) {
-    // 最新のものだけを保持し、描画が完了してから適用する
-    pending = { gen, line };
+  // 古い対象のものは捨てる
+  if (gen < shownGen) {
     return;
   }
-  if (gen !== shownGen) {
+  if (rendering || gen !== shownGen) {
+    // 最新のものだけを保持し、その世代の描画が終わってから適用する
+    pending = { gen, line };
     return;
   }
   followCursor(line);
