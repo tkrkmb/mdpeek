@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   // CDNからは何も読み込まないので、すべてをバンドルして相対パスで参照する
@@ -8,4 +8,8 @@ export default defineConfig({
     emptyOutDir: true,
   },
   clearScreen: false,
+  test: {
+    environment: "jsdom",
+    include: ["src/**/*.test.ts"],
+  },
 });
