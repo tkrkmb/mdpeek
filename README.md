@@ -32,7 +32,7 @@ Neovim 0.10以上が必要です。
 #### macOS
 
 ```sh
-VERSION=v0.2.0
+VERSION=v0.3.0
 curl -LO "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-${VERSION}-universal-macos.tar.gz"
 tar -xzf "mdpeek-${VERSION}-universal-macos.tar.gz"
 mkdir -p ~/bin
@@ -56,7 +56,7 @@ sudo dnf install webkit2gtk4.1
 ```
 
 ```sh
-VERSION=v0.2.0
+VERSION=v0.3.0
 curl -LO "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-${VERSION}-x86_64-linux.tar.gz"
 tar -xzf "mdpeek-${VERSION}-x86_64-linux.tar.gz"
 mkdir -p ~/bin
