@@ -1,4 +1,27 @@
+# ビルドの生成物
 /src-tauri/target/
 /src-tauri/gen/
 /ui/dist/
 /ui/node_modules/
+
+# 秘密情報。誤って追加しても、コミットに入らないようにする
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+id_rsa*
+id_ed25519*
+.netrc
+.npmrc
+credentials.json
+secrets/
+.tauri/
+
+# OSやエディタが作るもの
+.DS_Store
+*.swp
