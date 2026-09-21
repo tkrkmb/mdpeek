@@ -46,6 +46,7 @@ mdpeek/
   - 動作確認に使うコマンド
   - 次の作業で最初に読むべきファイル（数個まで）
 - `HANDOFF.md` は、読むだけで作業を再開できる最小限の内容にする。全体で50行以内に収める
+- `HANDOFF.md` は `private` ブランチに置く。読み書きの前後で `git checkout private`／`git checkout main` で切り替える
 
 ### DO NOT
 
@@ -70,6 +71,8 @@ mdpeek/
   - 件名は1行（なるべく72文字以内）で、「何を変えたか」ではなく「なぜ必要か」を書く
   - type は小文字（`feat`、`fix`、`refactor`、`docs`、`test`、`chore` など）。scope は `nvim`、`rpc`、`render`、`ui`、`sync` などを使い、意味のあるものがなければ省略する
   - 本文は、理由が1行で書けないときだけ付け、英語で理由を書く
+- `HANDOFF.md` と `PLAN.md` は `private` ブランチでのみ追跡する。`main` には置かない
+- push は `git push origin main` だけにする（`--all` は使わない）
 
 例：
 
@@ -86,6 +89,8 @@ chore(ui): bundle mermaid so the preview works offline
 - 履歴を書き換えない（rebase、amend、force push などは、指示があったときだけ行う）
 - 秘密情報、環境固有のパスや識別子、一時的な生成物をコミットしない
 - `update README` や `fix bug` のような曖昧な件名にしない
+- `private` ブランチを push しない
+- `HANDOFF.md` と `PLAN.md` を `main` にコミットしない
 
 ## 全体の仕様
 
