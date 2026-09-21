@@ -1,0 +1,120 @@
+name: release
+
+# v で始まるタグを押したときに動かす。手動でも実行できる。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      # LinuxのWebViewはWebKitGTKを使う
+      - name: Install the build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev
+
+      # フロントエンドを先にビルドする（実行ファイルに埋め込まれる）
+      - name: Build the frontend
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build the application
+        working-directory: src-tauri
+        run: cargo build --release
+
+      - name: Pack the executable
+        id: pack
+        run: |
+          name="mdpeek-${GITHUB_REF_NAME}-x86_64-linux"
+          mkdir -p "dist/${name}"
+          cp src-tauri/target/release/mdpeek README.md "dist/${name}/"
+          tar -czf "dist/${name}.tar.gz" -C dist "${name}"
+          echo "archive=dist/${name}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Attach it to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --generate-notes || true
+          gh release upload "${GITHUB_REF_NAME}" "${{ steps.pack.outputs.archive }}" --clobber
+
+      # タグ以外（手動実行）では、成果物として残すだけにする
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: mdpeek-x86_64-linux
+          path: ${{ steps.pack.outputs.archive }}
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      # IntelとApple Siliconの両方に向けてビルドする
+      - name: Add the mac targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build the frontend
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build the application
+        working-directory: src-tauri
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+
+      # 2つの実行ファイルを、1つのユニバーサルバイナリにまとめる
+      - name: Pack the executable
+        id: pack
+        run: |
+          name="mdpeek-${GITHUB_REF_NAME}-universal-macos"
+          mkdir -p "dist/${name}"
+          lipo -create -output "dist/${name}/mdpeek" \
+            src-tauri/target/aarch64-apple-darwin/release/mdpeek \
+            src-tauri/target/x86_64-apple-darwin/release/mdpeek
+          lipo -info "dist/${name}/mdpeek"
+          cp README.md "dist/${name}/"
+          tar -czf "dist/${name}.tar.gz" -C dist "${name}"
+          echo "archive=dist/${name}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Attach it to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --generate-notes || true
+          gh release upload "${GITHUB_REF_NAME}" "${{ steps.pack.outputs.archive }}" --clobber
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: mdpeek-universal-macos
+          path: ${{ steps.pack.outputs.archive }}
