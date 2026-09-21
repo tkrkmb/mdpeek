@@ -1,7 +1,11 @@
 use async_trait::async_trait;
 use nvim_rs::{compat::tokio::Compat, create::tokio::new_path, Handler, Neovim, Value};
 use tauri::AppHandle;
-use tokio::{io::WriteHalf, net::UnixStream};
+use tokio::{
+    io::WriteHalf,
+    net::UnixStream,
+    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+};
 
 use crate::{render, Args, Document};
 
@@ -10,23 +14,55 @@ type Writer = Compat<WriteHalf<UnixStream>>;
 #[derive(Clone)]
 struct NvimHandler {
     app: AppHandle,
+    queue: UnboundedSender<Value>,
 }
 
 #[async_trait]
 impl Handler for NvimHandler {
     type Writer = Writer;
 
-    async fn handle_notify(&self, name: String, _args: Vec<Value>, _nvim: Neovim<Writer>) {
-        // 受け取ったらすぐ返す。描画の完了は待たない。
-        if name == "mdpeek_close" {
-            self.app.exit(0);
+    async fn handle_notify(&self, name: String, args: Vec<Value>, _nvim: Neovim<Writer>) {
+        // 受け取ったらキューに渡してすぐ返す。描画の完了は待たない。
+        match name.as_str() {
+            "mdpeek_content" => {
+                if let Some(payload) = args.into_iter().next() {
+                    let _ = self.queue.send(payload);
+                }
+            }
+            "mdpeek_close" => self.app.exit(0),
+            _ => {}
+        }
+    }
+}
+
+/// キューに溜まっているもののうち、最後の本文を返す。
+fn newest(first: Value, queue: &mut UnboundedReceiver<Value>) -> Value {
+    let mut latest = first;
+    while let Ok(newer) = queue.try_recv() {
+        latest = newer;
+    }
+    latest
+}
+
+/// キューに届いた本文のうち、最新のものだけをHTMLに変換して送る。
+async fn render_queue(app: AppHandle, mut queue: UnboundedReceiver<Value>) {
+    while let Some(payload) = queue.recv().await {
+        let payload = newest(payload, &mut queue);
+        if let Some(document) = document_from(&payload) {
+            crate::publish(&app, document);
         }
     }
 }
 
 /// Neovimのソケットに接続し、登録してから、切断されるまで待つ。
 pub async fn run(app: AppHandle, args: Args) -> Result<(), String> {
-    let handler = NvimHandler { app: app.clone() };
+    let (queue, incoming) = unbounded_channel();
+    tauri::async_runtime::spawn(render_queue(app.clone(), incoming));
+
+    let handler = NvimHandler {
+        app: app.clone(),
+        queue,
+    };
     let (nvim, io) = new_path(&args.socket, handler)
         .await
         .map_err(|err| format!("cannot connect to {}: {err}", args.socket))?;
@@ -84,8 +120,9 @@ fn document_from(value: &Value) -> Option<Document> {
 
 #[cfg(test)]
 mod tests {
-    use super::document_from;
+    use super::{document_from, newest};
     use nvim_rs::Value;
+    use tokio::sync::mpsc::unbounded_channel;
 
     fn entry(key: &str, value: Value) -> (Value, Value) {
         (Value::from(key), value)
@@ -113,5 +150,15 @@ mod tests {
     #[test]
     fn rejects_a_nil_result() {
         assert!(document_from(&Value::Nil).is_none());
+    }
+
+    #[test]
+    fn keeps_only_the_last_queued_content() {
+        let (queue, mut incoming) = unbounded_channel();
+        for version in 1u64..=3 {
+            queue.send(Value::from(version)).expect("the queue is open");
+        }
+        let first = incoming.try_recv().expect("a queued payload");
+        assert_eq!(newest(first, &mut incoming), Value::from(3u64));
     }
 }
