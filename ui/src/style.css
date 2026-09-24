@@ -29,11 +29,12 @@ body {
   background-color: var(--mdpeek-background);
 }
 
-/* 戻る／進む。本文の左上に常時重ねる */
+/* 戻る／進む。本文の右下に常時重ねる。
+   右側は、重なって表示されるスクロールバー（macOSで最大16px程度）を避けて空ける */
 .mdpeek-nav {
   position: fixed;
-  top: 12px;
-  left: 12px;
+  bottom: 12px;
+  right: 28px;
   z-index: 10;
   display: flex;
   gap: 4px;
