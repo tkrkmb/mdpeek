@@ -23,7 +23,7 @@ pub struct Args {
 /// 起動引数から決まる、動く相手
 enum Mode {
     Nvim(Args),
-    File(PathBuf),
+    File { path: PathBuf, foreground: bool },
 }
 
 /// 起動時にどちらの相手で始めるか（ファイルモードは、起動前に読み込みまで済ませておく）
@@ -377,24 +377,32 @@ async fn open_path(
 }
 
 /// `--nvim <socket> --token <token>` ならNeovim連携モード、
-/// 単一の位置引数（ファイルパス）ならスタンドアローンモードにする。
+/// 単一の位置引数（ファイルパス、`--foreground` を付けてもよい）ならスタンドアローンモードにする。
 fn parse_args(argv: impl Iterator<Item = String>) -> Result<Mode, String> {
     let mut socket = None;
     let mut token = None;
+    let mut foreground = false;
     let mut positional = Vec::new();
     let mut argv = argv;
     while let Some(arg) = argv.next() {
         match arg.as_str() {
             "--nvim" => socket = argv.next(),
             "--token" => token = argv.next(),
+            "--foreground" => foreground = true,
             other if other.starts_with("--") => return Err(format!("unknown argument: {other}")),
             other => positional.push(other.to_string()),
         }
     }
     match (socket, token, positional.as_slice()) {
-        (Some(socket), Some(token), []) => Ok(Mode::Nvim(Args { socket, token })),
-        (None, None, [path]) => Ok(Mode::File(PathBuf::from(path))),
-        _ => Err("usage: mdpeek --nvim <socket> --token <token> | mdpeek <file>".to_string()),
+        (Some(socket), Some(token), []) if !foreground => Ok(Mode::Nvim(Args { socket, token })),
+        (None, None, [path]) => Ok(Mode::File {
+            path: PathBuf::from(path),
+            foreground,
+        }),
+        _ => Err(
+            "usage: mdpeek --nvim <socket> --token <token> | mdpeek [--foreground] <file>"
+                .to_string(),
+        ),
     }
 }
 
@@ -408,8 +416,18 @@ fn main() {
     };
     let launch = match mode {
         Mode::Nvim(args) => Launch::Nvim(args),
-        Mode::File(path) => match standalone::load(&path) {
-            Ok(document) => Launch::File(document),
+        Mode::File { path, foreground } => match standalone::load(&path) {
+            Ok(document) if foreground => Launch::File(document),
+            Ok(document) => {
+                // 検証できたので、端末から切り離した子プロセスに任せて、すぐに戻る
+                match standalone::detach(Path::new(&document.path)) {
+                    Ok(()) => std::process::exit(0),
+                    Err(message) => {
+                        report(&message);
+                        std::process::exit(2);
+                    }
+                }
+            }
             Err(message) => {
                 report(&message);
                 std::process::exit(2);
@@ -494,7 +512,7 @@ mod tests {
                 assert_eq!(args.socket, "/tmp/nvim.sock");
                 assert_eq!(args.token, "abc");
             }
-            Mode::File(_) => panic!("expected nvim mode"),
+            Mode::File { .. } => panic!("expected nvim mode"),
         }
     }
 
@@ -507,9 +525,37 @@ mod tests {
     fn parses_a_single_file_argument() {
         let mode = parse_args(["note.md"].into_iter().map(String::from)).expect("a mode");
         match mode {
-            Mode::File(path) => assert_eq!(path, std::path::PathBuf::from("note.md")),
+            Mode::File { path, foreground } => {
+                assert_eq!(path, std::path::PathBuf::from("note.md"));
+                assert!(!foreground, "standalone mode runs in the background by default");
+            }
             Mode::Nvim(_) => panic!("expected file mode"),
         }
+    }
+
+    #[test]
+    fn parses_the_foreground_flag() {
+        let mode = parse_args(["--foreground", "note.md"].into_iter().map(String::from))
+            .expect("a mode");
+        match mode {
+            Mode::File { foreground, .. } => assert!(foreground),
+            Mode::Nvim(_) => panic!("expected file mode"),
+        }
+    }
+
+    #[test]
+    fn rejects_the_foreground_flag_for_neovim() {
+        assert!(parse_args(
+            ["--nvim", "/tmp/nvim.sock", "--token", "abc", "--foreground"]
+                .into_iter()
+                .map(String::from)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn rejects_the_foreground_flag_alone() {
+        assert!(parse_args(["--foreground"].into_iter().map(String::from)).is_err());
     }
 
     #[test]

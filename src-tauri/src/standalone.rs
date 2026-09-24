@@ -49,6 +49,27 @@ pub fn open(path: &Path, generation: u64, version: u64) -> Result<Document, Stri
     })
 }
 
+/// 自分自身を `--foreground` 付きで起動し直し、端末から切り離して動かす。
+/// 別のプロセスグループにするので、端末でCtrl-Cを押しても子プロセスには届かない。
+/// 標準入出力は捨てる（端末を閉じても書き込みで止まらないように）。
+pub fn detach(path: &Path) -> Result<(), String> {
+    use std::os::unix::process::CommandExt;
+    use std::process::{Command, Stdio};
+
+    let exe = std::env::current_exe()
+        .map_err(|err| format!("cannot find the mdpeek executable: {err}"))?;
+    Command::new(exe)
+        .arg("--foreground")
+        .arg(path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| format!("cannot start mdpeek in the background: {err}"))
+}
+
 fn is_markdown(path: &Path) -> bool {
     let extension = path
         .extension()
