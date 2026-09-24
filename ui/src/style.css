@@ -1,9 +1,15 @@
 :root {
   color-scheme: light;
+  /* 本文（github-markdown-css の .markdown-body）と同じフォント */
+  --mdpeek-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --mdpeek-background: #ffffff;
   --mdpeek-nav-fg: #1f2328;
   --mdpeek-nav-bg: rgba(31, 35, 40, 0.06);
   --mdpeek-nav-bg-hover: rgba(31, 35, 40, 0.12);
+  --mdpeek-notice-fg: #cf222e;
+  --mdpeek-notice-bg: #ffebe9;
+  --mdpeek-notice-border: rgba(255, 129, 130, 0.4);
 }
 
 :root[data-theme="dark"] {
@@ -12,6 +18,9 @@
   --mdpeek-nav-fg: #e6edf3;
   --mdpeek-nav-bg: rgba(230, 237, 243, 0.08);
   --mdpeek-nav-bg-hover: rgba(230, 237, 243, 0.16);
+  --mdpeek-notice-fg: #ff7b72;
+  --mdpeek-notice-bg: #25171c;
+  --mdpeek-notice-border: rgba(248, 81, 73, 0.4);
 }
 
 html,
@@ -41,6 +50,7 @@ body {
 }
 
 .mdpeek-nav button {
+  font-family: var(--mdpeek-font);
   width: 28px;
   height: 28px;
   padding: 0;
@@ -60,6 +70,29 @@ body {
 
 .mdpeek-nav button:not(:disabled):hover {
   background: var(--mdpeek-nav-bg-hover);
+}
+
+/* 知らせの帯。本文の左下に重ね、右下の戻る／進むボタンとは重ならないようにする */
+.mdpeek-notice {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  z-index: 10;
+  box-sizing: border-box;
+  max-width: calc(100% - 120px);
+  padding: 6px 10px;
+  border: 1px solid var(--mdpeek-notice-border);
+  border-radius: 6px;
+  background: var(--mdpeek-notice-bg);
+  color: var(--mdpeek-notice-fg);
+  font-family: var(--mdpeek-font);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.mdpeek-notice[hidden] {
+  display: none;
 }
 
 .mermaid-diagram {

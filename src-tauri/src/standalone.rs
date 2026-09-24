@@ -6,7 +6,7 @@ use std::time::Duration;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Manager};
 
-use crate::{render, report, Document, Documents};
+use crate::{render, report, set_problem, Document, Documents};
 
 /// いま監視しているファイルのウォッチャー。差し替えると、古い方の監視スレッドは自然に終わる。
 #[derive(Default)]
@@ -144,9 +144,44 @@ fn reload(app: &AppHandle, path: &Path) {
                     html: render::to_html(&markdown),
                 },
             );
+            // 読み直せたので、前の失敗の知らせは取り消す
+            set_problem(app, None);
         }
-        Err(err) => report(&format!("cannot reload {}: {err}", path.display())),
+        Err(err) => {
+            report(&format!("cannot reload {}: {err}", path.display()));
+            set_problem(
+                app,
+                Some(format!(
+                    "{} を読み直せません。最後に読めた内容を表示しています（{err}）",
+                    file_name(path)
+                )),
+            );
+        }
     }
+}
+
+/// 監視を始める（差し替える）。始められなければ、ウィンドウにも知らせる。
+pub fn start_watching(app: &AppHandle, path: PathBuf) {
+    let name = file_name(&path);
+    match watch(app.clone(), path) {
+        Ok(()) => set_problem(app, None),
+        Err(message) => {
+            report(&message);
+            set_problem(
+                app,
+                Some(format!(
+                    "{name} を監視できません。保存しても表示は更新されません（{message}）"
+                )),
+            );
+        }
+    }
+}
+
+/// 知らせに出すための、パスの最後の部分
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.display().to_string())
 }
 
 #[cfg(test)]

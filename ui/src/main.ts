@@ -8,6 +8,7 @@ import { resolveImages } from "./images";
 import { handleLink } from "./links";
 import { renderMath } from "./math";
 import { initHistoryButtons, initSwipeGestures } from "./navigation";
+import { flash, setProblem } from "./notice";
 import { buildTable, findBlock, type Block } from "./sourcepos";
 import { cycle, onThemeChange, start as startTheme } from "./theme";
 
@@ -240,12 +241,14 @@ function nearestBlock(clientY: number): Block | null {
 }
 
 let updateHistoryButtons: ((state: HistoryAvailability) => void) | null = null;
+/** 直前に取得した、戻る／進むを辿れるかどうか */
+let availability: HistoryAvailability = { can_back: false, can_forward: false };
 
 /** 戻る／進むボタンの有効/無効を、いまの履歴に合わせ直す */
 async function refreshHistoryAvailability(): Promise<void> {
   try {
-    const state = await invoke<HistoryAvailability>("history_state");
-    updateHistoryButtons?.(state);
+    availability = await invoke<HistoryAvailability>("history_state");
+    updateHistoryButtons?.(availability);
   } catch {
     // 取得できなくても、表示は変えない
   }
@@ -259,8 +262,8 @@ async function followLink(href: string): Promise<void> {
   try {
     const target = await invoke<NavigationTarget>("open_link", { href: path, version: shownVersion });
     pendingNavigation = { gen: target.gen, version: target.version, fragment };
-  } catch {
-    // 解決できなかった、または開けなかった。何もしない
+  } catch (error) {
+    flash(`リンクを開けませんでした：${path}（${String(error)}）`);
   } finally {
     void refreshHistoryAvailability();
   }
@@ -268,11 +271,16 @@ async function followLink(href: string): Promise<void> {
 
 /** 戻る／進むの履歴を辿る */
 async function navigateHistory(command: "go_back" | "go_forward"): Promise<void> {
+  const back = command === "go_back";
+  // 辿れる履歴が無いときは、失敗として知らせず何もしない
+  if (back ? !availability.can_back : !availability.can_forward) {
+    return;
+  }
   try {
     const target = await invoke<NavigationTarget>(command);
     pendingNavigation = { gen: target.gen, version: target.version, fragment: null };
-  } catch {
-    // 履歴がない、または開けなかった。何もしない
+  } catch (error) {
+    flash(`${back ? "戻れません" : "進めません"}（${String(error)}）`);
   } finally {
     void refreshHistoryAvailability();
   }
@@ -354,7 +362,13 @@ void listen<CursorEvent>("mdpeek://cursor", (event) => {
   receiveCursor(event.payload.gen, event.payload.line);
 });
 
-// 起動直後に取りこぼした本文とカーソル行を拾う
+// 読み直しの失敗などは、切り離して動いていると端末に出ないので、ウィンドウに出す
+void listen<string | null>("mdpeek://problem", (event) => {
+  setProblem(event.payload);
+});
+
+// 起動直後に取りこぼした本文とカーソル行、問題を拾う
+void invoke<string | null>("current_problem").then(setProblem);
 void invoke<Document | null>("current_document").then(render);
 void invoke<CursorEvent | null>("current_cursor").then((cursor) => {
   if (cursor !== null) {

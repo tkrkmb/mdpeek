@@ -14,6 +14,8 @@ use tauri::{AppHandle, Emitter, Manager};
 const DOCUMENT_EVENT: &str = "mdpeek://document";
 /// カーソル行をフロントエンドへ届けるイベント名
 const CURSOR_EVENT: &str = "mdpeek://cursor";
+/// 読み直しの失敗など、利用者に知らせる問題を届けるイベント名（`null` で取り消し）
+const PROBLEM_EVENT: &str = "mdpeek://problem";
 
 pub struct Args {
     pub socket: String,
@@ -179,6 +181,30 @@ pub fn publish(app: &AppHandle, document: Document) {
 pub fn publish_cursor(app: &AppHandle, cursor: Cursor) {
     app.state::<Cursors>().accept(cursor);
     let _ = app.emit(CURSOR_EVENT, cursor);
+}
+
+/// いま利用者に知らせている問題。切り離して動くときは標準エラー出力が見えないため、
+/// ウィンドウに出す。
+#[derive(Default)]
+pub struct Problem(Mutex<Option<String>>);
+
+/// 問題を知らせる（`None` で取り消す）。変わらなければイベントは送らない。
+pub fn set_problem(app: &AppHandle, problem: Option<String>) {
+    {
+        let state = app.state::<Problem>();
+        let mut slot = state.0.lock().expect("problem lock");
+        if *slot == problem {
+            return;
+        }
+        *slot = problem.clone();
+    }
+    let _ = app.emit(PROBLEM_EVENT, problem);
+}
+
+/// 起動直後に取りこぼした問題を、フロントエンドが拾い直す。
+#[tauri::command]
+fn current_problem(problem: tauri::State<'_, Problem>) -> Option<String> {
+    problem.0.lock().expect("problem lock").clone()
 }
 
 #[tauri::command]
@@ -358,9 +384,7 @@ async fn open_path(
         RuntimeMode::File => {
             let document = standalone::open(target, current.generation + 1, current.version + 1)?;
             crate::publish(app, document.clone());
-            if let Err(message) = standalone::watch(app.clone(), target.to_path_buf()) {
-                report(&message);
-            }
+            standalone::start_watching(app, target.to_path_buf());
             Ok(NavigationTarget::from(&document))
         }
         RuntimeMode::Nvim => {
@@ -445,6 +469,7 @@ fn main() {
         .manage(Cursors::default())
         .manage(Session::default())
         .manage(History::default())
+        .manage(Problem::default())
         .manage(standalone::Watching::default())
         .manage(runtime_mode)
         .invoke_handler(tauri::generate_handler![
@@ -454,6 +479,7 @@ fn main() {
             jump,
             app_mode,
             history_state,
+            current_problem,
             open_link,
             go_back,
             go_forward
@@ -475,9 +501,7 @@ fn main() {
                     // （相対パスで起動すると、親ディレクトリが空になり監視できないため）
                     let watched = PathBuf::from(&document.path);
                     crate::publish(&handle, document);
-                    if let Err(message) = standalone::watch(handle.clone(), watched) {
-                        report(&message);
-                    }
+                    standalone::start_watching(&handle, watched);
                 }
             }
             Ok(())
