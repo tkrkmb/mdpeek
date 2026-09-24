@@ -23,6 +23,7 @@ mdpeek/
 ├── ui/               # TypeScript + Vite
 ├── lua/mdpeek/       # Neovimプラグイン（リポジトリのルートをプラグインとして読み込めるようにする）
 ├── AGENTS.md
+├── CHANGELOG.md      # 利用者から見える変更の履歴（Releaseの説明の元）
 ├── HANDOFF.md        # 引き継ぎ資料（毎回上書き）
 └── README.md
 ```
@@ -213,6 +214,8 @@ DO
 - Linux（Ubuntu、x86_64）とmacOS（IntelとApple Siliconの両方で動く1つの実行ファイル）を作る
 - どちらも、フロントエンドをビルドしてから `cargo build --release` を実行する
 - できた実行ファイルを `tar.gz` にまとめ、タグから作るGitHubのReleaseに添付する
+- Releaseの説明は、`CHANGELOG.md` のうちタグと同じ見出し（`## [vX.Y.Z]`）の節から作る。その節が無ければ、ジョブを失敗させる
+- 利用者から見える変更をコミットしたら、`CHANGELOG.md` の「未リリース」の節にも日本語で書き足す。版を出すときは、その見出しを `## [vX.Y.Z] - YYYY-MM-DD` に書き換えてからタグを付ける
 
 DO NOT
 

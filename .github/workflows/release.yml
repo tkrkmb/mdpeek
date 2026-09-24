@@ -55,7 +55,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" --generate-notes || true
+          # CHANGELOG.md から、このタグの節を取り出してReleaseの説明にする
+          awk -v tag="${GITHUB_REF_NAME}" '
+            index($0, "## [" tag "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "CHANGELOG.md has no section for ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          # もう一方のジョブが先に作っていれば、説明だけ揃える
+          gh release create "${GITHUB_REF_NAME}" --notes-file notes.md \
+            || gh release edit "${GITHUB_REF_NAME}" --notes-file notes.md
           gh release upload "${GITHUB_REF_NAME}" "${{ steps.pack.outputs.archive }}" --clobber
 
       # タグ以外（手動実行）では、成果物として残すだけにする
@@ -112,7 +124,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" --generate-notes || true
+          # CHANGELOG.md から、このタグの節を取り出してReleaseの説明にする
+          awk -v tag="${GITHUB_REF_NAME}" '
+            index($0, "## [" tag "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "CHANGELOG.md has no section for ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          # もう一方のジョブが先に作っていれば、説明だけ揃える
+          gh release create "${GITHUB_REF_NAME}" --notes-file notes.md \
+            || gh release edit "${GITHUB_REF_NAME}" --notes-file notes.md
           gh release upload "${GITHUB_REF_NAME}" "${{ steps.pack.outputs.archive }}" --clobber
 
       - uses: actions/upload-artifact@v7
