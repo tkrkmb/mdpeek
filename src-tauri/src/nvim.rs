@@ -158,9 +158,31 @@ pub async fn jump(nvim: Nvim, gen: u64, version: u64, line: u64) -> Result<(), S
     .map_err(|err| format!("jump failed: {err}"))
 }
 
+/// アプリからNeovimへ、リンクで解決した絶対パスを開くよう要求する。
+/// 成功したら、Neovim側で新しくなった対象世代・版を返す
+/// (本文とカーソル行は、いつもどおり別の通知で届く)。
+pub async fn open(nvim: Nvim, gen: u64, version: u64, path: &str) -> Result<(u64, u64), String> {
+    let result = nvim
+        .exec_lua(
+            r#"return require("mdpeek.rpc").open(...)"#,
+            vec![Value::from(gen), Value::from(version), Value::from(path)],
+        )
+        .await
+        .map_err(|err| format!("open failed: {err}"))?;
+    open_result(&result).ok_or_else(|| "nvim declined to open the file".to_string())
+}
+
+/// `rpc.open` の戻り値から `{gen, version}` を取り出す。失敗（`false`）なら `None`。
+fn open_result(value: &Value) -> Option<(u64, u64)> {
+    Some((
+        field(value, "gen")?.as_u64()?,
+        field(value, "version")?.as_u64()?,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{document_from, newest};
+    use super::{document_from, newest, open_result};
     use nvim_rs::Value;
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -207,6 +229,17 @@ mod tests {
     #[test]
     fn rejects_a_nil_result() {
         assert!(document_from(&Value::Nil).is_none());
+    }
+
+    #[test]
+    fn reads_the_open_result() {
+        let value = Value::Map(vec![entry("gen", Value::from(4u64)), entry("version", Value::from(9u64))]);
+        assert_eq!(open_result(&value), Some((4, 9)));
+    }
+
+    #[test]
+    fn treats_a_declined_open_as_none() {
+        assert_eq!(open_result(&Value::from(false)), None);
     }
 
     #[test]

@@ -184,6 +184,20 @@ local function set_autocmds(buf)
   })
 end
 
+-- 対象を設定する。対象世代を1増やす。アプリが動いていれば、本文とカーソル行をすぐ送る。
+local function set_target(buf, win)
+  state.buf = buf
+  state.win = win
+  state.gen = state.gen + 1
+  state.last_line = nil
+  set_autocmds(buf)
+
+  if state.proc then
+    send_content()
+    send_cursor_now()
+  end
+end
+
 local function spawn(sock, token)
   local rec = { exited = false }
   local ok, handle = pcall(vim.system, { state.bin, "--nvim", sock, "--token", token }, {}, function()
@@ -231,17 +245,10 @@ function M.open()
     return
   end
 
-  -- 対象を設定する。対象世代を1増やす。
-  state.buf = buf
-  state.win = win
-  state.gen = state.gen + 1
-  state.last_line = nil
-  set_autocmds(buf)
+  set_target(buf, win)
 
   if state.proc then
-    -- すでにアプリが動いているので、起動はせず、本文とカーソル行をすぐ送る
-    send_content()
-    send_cursor_now()
+    -- すでにアプリが動いているので、起動はしない（本文とカーソル行はset_targetがすぐ送る）
     return
   end
 
@@ -269,5 +276,10 @@ function M.close()
     end, 1000)
   end
 end
+
+-- rpc.lua が、リンクを辿る要求(open)の実装に使う
+M.check_buf = check_buf
+M.set_autocmds = set_autocmds
+M.set_target = set_target
 
 return M

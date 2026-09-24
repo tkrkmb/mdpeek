@@ -220,6 +220,7 @@ async fn open_link(
     documents: tauri::State<'_, Documents>,
     history: tauri::State<'_, History>,
     mode: tauri::State<'_, RuntimeMode>,
+    session: tauri::State<'_, Session>,
     href: String,
     version: u64,
 ) -> Result<NavigationTarget, String> {
@@ -232,12 +233,12 @@ async fn open_link(
         .ok_or_else(|| "the document has no directory".to_string())?;
     let target = image::resolve_markdown_link(base, &href)?;
 
-    let document = open_path(&app, &documents, *mode, &target).await?;
+    let navigation = open_path(&app, &documents, *mode, &session, &target).await?;
 
     let mut history = history.0.lock().expect("history lock");
     history.back.push(PathBuf::from(current.path));
     history.forward.clear();
-    Ok(NavigationTarget::from(&document))
+    Ok(navigation)
 }
 
 /// 戻る／進むで、履歴にあるパスを開き直す。開けなかったら履歴は動かさない。
@@ -247,8 +248,9 @@ async fn go_back(
     documents: tauri::State<'_, Documents>,
     history: tauri::State<'_, History>,
     mode: tauri::State<'_, RuntimeMode>,
+    session: tauri::State<'_, Session>,
 ) -> Result<NavigationTarget, String> {
-    navigate_history(&app, &documents, &history, *mode, true).await
+    navigate_history(&app, &documents, &history, *mode, &session, true).await
 }
 
 #[tauri::command]
@@ -257,8 +259,9 @@ async fn go_forward(
     documents: tauri::State<'_, Documents>,
     history: tauri::State<'_, History>,
     mode: tauri::State<'_, RuntimeMode>,
+    session: tauri::State<'_, Session>,
 ) -> Result<NavigationTarget, String> {
-    navigate_history(&app, &documents, &history, *mode, false).await
+    navigate_history(&app, &documents, &history, *mode, &session, false).await
 }
 
 async fn navigate_history(
@@ -266,6 +269,7 @@ async fn navigate_history(
     documents: &Documents,
     history: &History,
     mode: RuntimeMode,
+    session: &Session,
     back: bool,
 ) -> Result<NavigationTarget, String> {
     let current = documents.current().ok_or_else(|| "no document".to_string())?;
@@ -279,8 +283,8 @@ async fn navigate_history(
         stack.pop().ok_or_else(|| "no more history".to_string())?
     };
 
-    match open_path(app, documents, mode, &target).await {
-        Ok(document) => {
+    match open_path(app, documents, mode, session, &target).await {
+        Ok(navigation) => {
             let mut history = history.0.lock().expect("history lock");
             let push_to = if back {
                 &mut history.forward
@@ -288,7 +292,7 @@ async fn navigate_history(
                 &mut history.back
             };
             push_to.push(PathBuf::from(current.path));
-            Ok(NavigationTarget::from(&document))
+            Ok(navigation)
         }
         Err(message) => {
             // 開けなかったら、ポップしたものを元の履歴に戻す
@@ -306,12 +310,15 @@ async fn navigate_history(
 
 /// 絶対パスを、いまのモードに応じて新しい文書として開く。
 /// スタンドアローンモードではファイルを読み、監視の対象も差し替える。
+/// Neovim連携モードでは、rpc.open を呼んで対象ウィンドウにも同じファイルを開かせる
+/// (本文とカーソル行は、いつもどおり別の通知で届く)。
 async fn open_path(
     app: &AppHandle,
     documents: &Documents,
     mode: RuntimeMode,
+    session: &Session,
     target: &Path,
-) -> Result<Document, String> {
+) -> Result<NavigationTarget, String> {
     let current = documents.current().ok_or_else(|| "no document".to_string())?;
     match mode {
         RuntimeMode::File => {
@@ -320,11 +327,14 @@ async fn open_path(
             if let Err(message) = standalone::watch(app.clone(), target.to_path_buf()) {
                 report(&message);
             }
-            Ok(document)
+            Ok(NavigationTarget::from(&document))
         }
-        // 段階6cで、rpc.open によりNeovim側にも同じファイルを開かせる
         RuntimeMode::Nvim => {
-            Err("following links while previewing from Neovim isn't supported yet".to_string())
+            let nvim = session.get().ok_or_else(|| "not connected".to_string())?;
+            let path = target.to_string_lossy().into_owned();
+            let (generation, version) =
+                nvim::open(nvim, current.generation, current.version, &path).await?;
+            Ok(NavigationTarget { generation, version })
         }
     }
 }

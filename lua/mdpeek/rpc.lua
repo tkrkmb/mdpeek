@@ -68,4 +68,77 @@ function M.jump(gen, version, line)
   return true
 end
 
+-- 絶対パスで、読めるファイルで、拡張子が md／markdown であること
+local function is_openable_markdown(path)
+  if type(path) ~= "string" or not path:match("^/") then
+    return false
+  end
+  local extension = path:match("%.([%w]+)$")
+  if extension == nil then
+    return false
+  end
+  extension = extension:lower()
+  if extension ~= "md" and extension ~= "markdown" then
+    return false
+  end
+  return vim.fn.filereadable(path) == 1
+end
+
+-- アプリからのリンクを開く要求。すべての検証に通ったときだけ、対象ウィンドウで
+-- 指定されたファイルを開く。開いた後のバッファが対象にできるものであれば、それを
+-- 新しい対象にする。成功したら {gen, version} を、失敗したら false を返す。
+function M.open(gen, version, path)
+  if type(gen) ~= "number" or type(version) ~= "number" then
+    return false
+  end
+  if gen ~= state.gen or version ~= state.version then
+    return false
+  end
+  if not (state.win and vim.api.nvim_win_is_valid(state.win)) then
+    return false
+  end
+  if not (state.buf and vim.api.nvim_buf_is_valid(state.buf)) then
+    return false
+  end
+  if vim.api.nvim_win_get_buf(state.win) ~= state.buf then
+    return false
+  end
+  if not is_openable_markdown(path) then
+    return false
+  end
+
+  local mdpeek = require("mdpeek.init")
+  local win = state.win
+  local previous_buf = state.buf
+
+  -- 開く前に、いまの対象のautocmdを外す
+  -- (バッファがwipeされてBufWipeoutが走っても :MdPeekClose にならないように)
+  if state.augroup then
+    pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
+    state.augroup = nil
+  end
+
+  local opened = pcall(vim.api.nvim_win_call, win, function()
+    vim.cmd.edit(vim.fn.fnameescape(path))
+  end)
+  if not opened then
+    -- 開けなかった。元の対象のautocmdを戻す
+    mdpeek.set_autocmds(previous_buf)
+    vim.notify("mdpeek: cannot open " .. path, vim.log.levels.WARN)
+    return false
+  end
+
+  local new_buf = vim.api.nvim_win_get_buf(win)
+  local ok, reason = mdpeek.check_buf(new_buf)
+  if not ok then
+    -- 開けたが、対象にできるバッファではなかった。対象は設定し直さない
+    -- (ウィンドウはすでに新しいバッファを表示しているので、元のautocmdは戻さない)
+    vim.notify("mdpeek: cannot preview this buffer: " .. reason, vim.log.levels.WARN)
+    return false
+  end
+
+  mdpeek.set_target(new_buf, win)
+  return { gen = state.gen, version = state.version }
+end
+
 return M
