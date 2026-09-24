@@ -29,7 +29,7 @@ enum Mode {
 /// 起動時にどちらの相手で始めるか（ファイルモードは、起動前に読み込みまで済ませておく）
 enum Launch {
     Nvim(Args),
-    File(PathBuf, Document),
+    File(Document),
 }
 
 /// フロントエンドがリンクの扱いを切り替えるための、いまの動作モード
@@ -409,7 +409,7 @@ fn main() {
     let launch = match mode {
         Mode::Nvim(args) => Launch::Nvim(args),
         Mode::File(path) => match standalone::load(&path) {
-            Ok(document) => Launch::File(path, document),
+            Ok(document) => Launch::File(document),
             Err(message) => {
                 report(&message);
                 std::process::exit(2);
@@ -418,7 +418,7 @@ fn main() {
     };
     let runtime_mode = match &launch {
         Launch::Nvim(_) => RuntimeMode::Nvim,
-        Launch::File(..) => RuntimeMode::File,
+        Launch::File(_) => RuntimeMode::File,
     };
 
     tauri::Builder::default()
@@ -452,9 +452,12 @@ fn main() {
                         handle.exit(0);
                     });
                 }
-                Launch::File(path, document) => {
+                Launch::File(document) => {
+                    // 監視には、引数そのものではなく正規化済みの絶対パスを使う
+                    // （相対パスで起動すると、親ディレクトリが空になり監視できないため）
+                    let watched = PathBuf::from(&document.path);
                     crate::publish(&handle, document);
-                    if let Err(message) = standalone::watch(handle.clone(), path) {
+                    if let Err(message) = standalone::watch(handle.clone(), watched) {
                         report(&message);
                     }
                 }
