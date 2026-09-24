@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
@@ -7,9 +8,11 @@ use tauri::{AppHandle, Manager};
 
 use crate::{render, report, Document, Documents};
 
-/// 指定されたファイルを読み、初期表示用の文書を作る。
-/// ファイルが存在しないか、拡張子が md／markdown でなければ失敗する。
-pub fn load(path: &Path) -> Result<Document, String> {
+/// いま監視しているファイルのウォッチャー。差し替えると、古い方の監視スレッドは自然に終わる。
+#[derive(Default)]
+pub struct Watching(Mutex<Option<RecommendedWatcher>>);
+
+fn read(path: &Path) -> Result<(PathBuf, String), String> {
     let canonical = std::fs::canonicalize(path)
         .map_err(|err| format!("cannot open {}: {err}", path.display()))?;
     if !canonical.is_file() {
@@ -18,12 +21,29 @@ pub fn load(path: &Path) -> Result<Document, String> {
     if !is_markdown(&canonical) {
         return Err(format!("{} is not a markdown file", canonical.display()));
     }
-
     let markdown = std::fs::read_to_string(&canonical)
         .map_err(|err| format!("cannot read {}: {err}", canonical.display()))?;
+    Ok((canonical, markdown))
+}
+
+/// 指定されたファイルを読み、初期表示用の文書を作る。
+/// ファイルが存在しないか、拡張子が md／markdown でなければ失敗する。
+pub fn load(path: &Path) -> Result<Document, String> {
+    let (canonical, markdown) = read(path)?;
     Ok(Document {
         generation: 1,
         version: 1,
+        path: canonical.to_string_lossy().into_owned(),
+        html: render::to_html(&markdown),
+    })
+}
+
+/// リンクや履歴で開いた別の文書を、指定した世代・版で読み込む。
+pub fn open(path: &Path, generation: u64, version: u64) -> Result<Document, String> {
+    let (canonical, markdown) = read(path)?;
+    Ok(Document {
+        generation,
+        version,
         path: canonical.to_string_lossy().into_owned(),
         html: render::to_html(&markdown),
     })
@@ -40,6 +60,7 @@ fn is_markdown(path: &Path) -> bool {
 /// 開いているファイルを監視し、変更されたら読み直して表示を更新する。
 /// エディタが別名で保存してから置き換えることがあるので、親ディレクトリを
 /// 非再帰で監視し、対象のパスへのイベントだけを拾う。
+/// リンクや履歴で別の文書を開いたときは、この関数をもう一度呼んで監視を差し替える。
 pub fn watch(app: AppHandle, path: PathBuf) -> Result<(), String> {
     let parent = path
         .parent()
@@ -55,22 +76,23 @@ pub fn watch(app: AppHandle, path: PathBuf) -> Result<(), String> {
         .watch(&parent, RecursiveMode::NonRecursive)
         .map_err(|err| format!("cannot watch {}: {err}", parent.display()))?;
 
-    std::thread::spawn(move || {
-        // ウォッチャーを保持し続ける（drop すると監視が止まる）
-        let _watcher = watcher;
-        loop {
-            let event = match rx.recv() {
-                Ok(Ok(event)) => event,
-                Ok(Err(_)) => continue,
-                Err(_) => break,
-            };
-            if !touches(&event, &path) {
-                continue;
-            }
-            // 別名保存からの置き換えに備え、少し待って最後の状態だけ拾う
-            while rx.recv_timeout(Duration::from_millis(100)).is_ok() {}
-            reload(&app, &path);
+    // 古いウォッチャーをここで差し替える。drop されると、そのイベントを待っている
+    // 古い監視スレッドは channel が閉じて自然に終わる。
+    *app.state::<Watching>().0.lock().expect("watching lock") = Some(watcher);
+
+    let handle = app.clone();
+    std::thread::spawn(move || loop {
+        let event = match rx.recv() {
+            Ok(Ok(event)) => event,
+            Ok(Err(_)) => continue,
+            Err(_) => break,
+        };
+        if !touches(&event, &path) {
+            continue;
         }
+        // 別名保存からの置き換えに備え、少し待って最後の状態だけ拾う
+        while rx.recv_timeout(Duration::from_millis(100)).is_ok() {}
+        reload(&handle, &path);
     });
     Ok(())
 }
@@ -85,6 +107,11 @@ fn reload(app: &AppHandle, path: &Path) {
     let Some(current) = documents.current() else {
         return;
     };
+    // リンクや履歴で別の文書に移っていたら、この監視の対象はもう表示されていない
+    // （差し替えの途中の一瞬だけ、古い監視が残っていることがある）
+    if Path::new(&current.path) != path {
+        return;
+    }
     match std::fs::read_to_string(path) {
         Ok(markdown) => {
             crate::publish(
@@ -103,7 +130,7 @@ fn reload(app: &AppHandle, path: &Path) {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_markdown, load};
+    use super::{is_markdown, load, open};
     use std::fs;
     use std::path::{Path, PathBuf};
 
@@ -156,5 +183,16 @@ mod tests {
     fn rejects_a_directory() {
         let base = workspace("directory");
         assert!(load(&base).is_err());
+    }
+
+    #[test]
+    fn opens_a_document_with_the_given_generation_and_version() {
+        let base = workspace("open");
+        let file = base.join("other.md");
+        fs::write(&file, "# other\n").expect("a test file");
+        let document = open(&file, 3, 8).expect("a document");
+        assert_eq!(document.generation, 3);
+        assert_eq!(document.version, 8);
+        assert!(document.html.contains("other"), "{}", document.html);
     }
 }

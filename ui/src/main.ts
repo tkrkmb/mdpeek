@@ -22,6 +22,18 @@ type CursorEvent = {
   line: number;
 };
 
+type NavigationTarget = {
+  gen: number;
+  version: number;
+};
+
+/** リンクや履歴で移動した先。届いた文書と世代・版が一致したら、そちらを優先する */
+type PendingNavigation = {
+  gen: number;
+  version: number;
+  fragment: string | null;
+};
+
 /** 画面の上端付近にあるブロックのソース行と、画面内でのオフセット */
 type Anchor = {
   line: number;
@@ -37,6 +49,8 @@ let table: Block[] = [];
 let rendering = false;
 /** 描画を待っている間に届いた、いちばん新しいカーソル（世代付き） */
 let pending: { gen: number; line: number } | null = null;
+/** リンクや履歴での移動先。まだ文書が届いていない間だけ保持する */
+let pendingNavigation: PendingNavigation | null = null;
 
 function isCurrent(version: number): () => boolean {
   return () => version === shownVersion;
@@ -116,6 +130,26 @@ function watchImages(version: number): void {
   }
 }
 
+/** 届いた文書が、いま待っているリンク先や履歴の行き先と一致するか */
+function matchPendingNavigation(gen: number, version: number): PendingNavigation | null {
+  if (pendingNavigation === null || pendingNavigation.gen !== gen || pendingNavigation.version !== version) {
+    return null;
+  }
+  const navigation = pendingNavigation;
+  pendingNavigation = null;
+  return navigation;
+}
+
+/** #見出し があればその要素へ、なければ先頭へ移動する */
+function goToFragmentOrTop(fragment: string | null): void {
+  const target = fragment !== null ? document.getElementById(fragment) : null;
+  if (target !== null) {
+    target.scrollIntoView();
+  } else {
+    window.scrollTo({ top: 0 });
+  }
+}
+
 function render(doc: Document | null): void {
   if (doc === null) {
     return;
@@ -124,13 +158,15 @@ function render(doc: Document | null): void {
   if (doc.version < shownVersion) {
     return;
   }
+  // リンクや履歴での移動先なら、読んでいた位置ではなく先頭／見出しへ動く
+  const navigation = matchPendingNavigation(doc.gen, doc.version);
   shownGen = doc.gen;
   shownVersion = doc.version;
   const current = isCurrent(doc.version);
   rendering = true;
 
   // 読んでいた位置を、差し替えの前に記録して、後で戻す
-  const anchor = capture();
+  const anchor = navigation === null ? capture() : null;
   body.innerHTML = doc.html;
   renderMath(body);
   rebuildTable();
@@ -147,7 +183,9 @@ function render(doc: Document | null): void {
     }
   });
 
-  if (anchor !== null) {
+  if (navigation !== null) {
+    goToFragmentOrTop(navigation.fragment);
+  } else if (anchor !== null) {
     restore(anchor);
   }
 
@@ -190,10 +228,41 @@ function nearestBlock(clientY: number): Block | null {
   return best;
 }
 
+/** 相対パスの .md／.markdown リンクを開く。#見出し があれば、開いた後にそこへ動く */
+async function followLink(href: string): Promise<void> {
+  const hashIndex = href.indexOf("#");
+  const fragment = hashIndex === -1 ? null : decodeURIComponent(href.slice(hashIndex + 1));
+  const path = hashIndex === -1 ? href : href.slice(0, hashIndex);
+  try {
+    const target = await invoke<NavigationTarget>("open_link", { href: path, version: shownVersion });
+    pendingNavigation = { gen: target.gen, version: target.version, fragment };
+  } catch {
+    // 解決できなかった、または開けなかった。何もしない
+  }
+}
+
+/** 戻る／進むの履歴を辿る */
+async function navigateHistory(command: "go_back" | "go_forward"): Promise<void> {
+  try {
+    const target = await invoke<NavigationTarget>(command);
+    pendingNavigation = { gen: target.gen, version: target.version, fragment: null };
+  } catch {
+    // 履歴がない、または開けなかった。何もしない
+  }
+}
+
+function isBack(event: KeyboardEvent): boolean {
+  return isMac ? event.metaKey && event.key === "[" : event.altKey && event.key === "ArrowLeft";
+}
+
+function isForward(event: KeyboardEvent): boolean {
+  return isMac ? event.metaKey && event.key === "]" : event.altKey && event.key === "ArrowRight";
+}
+
 body.addEventListener("click", (event) => {
   const modified = isMac ? event.metaKey : event.ctrlKey;
   if (!modified) {
-    handleLink(event);
+    handleLink(event, (href) => void followLink(href));
     return;
   }
   // 修飾クリックのときは、リンクの通常動作を止める
@@ -220,6 +289,16 @@ onThemeChange(() => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (isBack(event)) {
+    event.preventDefault();
+    void navigateHistory("go_back");
+    return;
+  }
+  if (isForward(event)) {
+    event.preventDefault();
+    void navigateHistory("go_forward");
+    return;
+  }
   if (event.ctrlKey || event.metaKey || event.altKey) {
     return;
   }

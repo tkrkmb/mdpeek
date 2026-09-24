@@ -3,11 +3,22 @@ use std::path::{Path, PathBuf};
 use percent_encoding::percent_decode_str;
 
 /// 表示してよい画像の拡張子
-const EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "gif", "webp", "svg"];
+const IMAGE_EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "gif", "webp", "svg"];
+/// リンクとして開いてよいMarkdownの拡張子
+const MARKDOWN_EXTENSIONS: [&str; 2] = ["md", "markdown"];
 
 /// 文書のディレクトリを基準にパスを解決し、実体のパスを返す。
 /// 存在して、拡張子が許可されたものである場合だけ成功する。
 pub fn resolve(base: &Path, raw: &str) -> Result<PathBuf, String> {
+    resolve_with_extensions(base, raw, &IMAGE_EXTENSIONS)
+}
+
+/// 相対パスの `.md`／`.markdown` リンクを、文書のディレクトリを基準に解決する。
+pub fn resolve_markdown_link(base: &Path, raw: &str) -> Result<PathBuf, String> {
+    resolve_with_extensions(base, raw, &MARKDOWN_EXTENSIONS)
+}
+
+fn resolve_with_extensions(base: &Path, raw: &str, extensions: &[&str]) -> Result<PathBuf, String> {
     let decoded = percent_decode_str(raw).decode_utf8_lossy().to_string();
     let candidate = base.join(decoded);
 
@@ -22,15 +33,15 @@ pub fn resolve(base: &Path, raw: &str) -> Result<PathBuf, String> {
         .extension()
         .map(|found| found.to_string_lossy().to_lowercase())
         .unwrap_or_default();
-    if !EXTENSIONS.contains(&extension.as_str()) {
-        return Err(format!("{extension} is not an allowed image type"));
+    if !extensions.contains(&extension.as_str()) {
+        return Err(format!("{extension} is not an allowed extension"));
     }
     Ok(resolved)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::resolve;
+    use super::{resolve, resolve_markdown_link};
     use std::fs;
     use std::path::{Path, PathBuf};
 
@@ -95,5 +106,36 @@ mod tests {
         let base = workspace("uppercase");
         write(&base.join("img/a.PNG"));
         assert!(resolve(&base, "img/a.PNG").is_ok());
+    }
+
+    #[test]
+    fn resolves_a_relative_markdown_link() {
+        let base = workspace("markdown-link");
+        write(&base.join("other.md"));
+        let resolved = resolve_markdown_link(&base, "other.md").expect("a path");
+        assert_eq!(resolved, fs::canonicalize(base.join("other.md")).unwrap());
+    }
+
+    #[test]
+    fn accepts_the_markdown_extension_too() {
+        let base = workspace("markdown-link-extension");
+        write(&base.join("other.markdown"));
+        assert!(resolve_markdown_link(&base, "other.markdown").is_ok());
+    }
+
+    #[test]
+    fn rejects_an_image_as_a_markdown_link() {
+        let base = workspace("markdown-link-rejects-image");
+        write(&base.join("a.png"));
+        assert!(resolve_markdown_link(&base, "a.png").is_err());
+    }
+
+    #[test]
+    fn resolves_a_markdown_link_up_a_directory() {
+        let base = workspace("markdown-link-parent");
+        write(&base.join("other.md"));
+        // workspace() は "img" を作ってあるので、それを「いまの文書のディレクトリ」に見立てる
+        let resolved = resolve_markdown_link(&base.join("img"), "../other.md").expect("a path");
+        assert_eq!(resolved, fs::canonicalize(base.join("other.md")).unwrap());
     }
 }

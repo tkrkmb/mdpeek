@@ -32,6 +32,22 @@ enum Launch {
     File(PathBuf, Document),
 }
 
+/// フロントエンドがリンクの扱いを切り替えるための、いまの動作モード
+#[derive(Clone, Copy)]
+pub enum RuntimeMode {
+    Nvim,
+    File,
+}
+
+impl RuntimeMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            RuntimeMode::Nvim => "nvim",
+            RuntimeMode::File => "file",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Document {
     #[serde(rename = "gen")]
@@ -46,6 +62,33 @@ pub struct Cursor {
     #[serde(rename = "gen")]
     pub generation: u64,
     pub line: u64,
+}
+
+/// リンクや履歴で開いた文書の、行き先を示す最小限の情報
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct NavigationTarget {
+    #[serde(rename = "gen")]
+    pub generation: u64,
+    pub version: u64,
+}
+
+impl From<&Document> for NavigationTarget {
+    fn from(document: &Document) -> Self {
+        NavigationTarget {
+            generation: document.generation,
+            version: document.version,
+        }
+    }
+}
+
+/// リンクで開いた文書の履歴。開いてよいパスを、Rust側だけが決める。
+#[derive(Default)]
+pub struct History(Mutex<HistoryState>);
+
+#[derive(Default)]
+struct HistoryState {
+    back: Vec<PathBuf>,
+    forward: Vec<PathBuf>,
 }
 
 /// ジャンプ要求のために、Neovimとの接続を預かる
@@ -162,6 +205,130 @@ fn resolve_image(
     Ok(resolved.to_string_lossy().into_owned())
 }
 
+/// フロントエンドが、起動時のモードを取得する。
+#[tauri::command]
+fn app_mode(mode: tauri::State<'_, RuntimeMode>) -> &'static str {
+    mode.as_str()
+}
+
+/// 相対パスの `.md`／`.markdown` リンクを開く要求を受けたら、いまの文書の
+/// ディレクトリを基準に解決してから、新しい文書として開く。開けたら、いまの
+/// パスを戻る履歴に積み、進む履歴は空にする。
+#[tauri::command]
+async fn open_link(
+    app: AppHandle,
+    documents: tauri::State<'_, Documents>,
+    history: tauri::State<'_, History>,
+    mode: tauri::State<'_, RuntimeMode>,
+    href: String,
+    version: u64,
+) -> Result<NavigationTarget, String> {
+    let current = documents.current().ok_or_else(|| "no document".to_string())?;
+    if current.version != version {
+        return Err("the document has moved on".to_string());
+    }
+    let base = Path::new(&current.path)
+        .parent()
+        .ok_or_else(|| "the document has no directory".to_string())?;
+    let target = image::resolve_markdown_link(base, &href)?;
+
+    let document = open_path(&app, &documents, *mode, &target).await?;
+
+    let mut history = history.0.lock().expect("history lock");
+    history.back.push(PathBuf::from(current.path));
+    history.forward.clear();
+    Ok(NavigationTarget::from(&document))
+}
+
+/// 戻る／進むで、履歴にあるパスを開き直す。開けなかったら履歴は動かさない。
+#[tauri::command]
+async fn go_back(
+    app: AppHandle,
+    documents: tauri::State<'_, Documents>,
+    history: tauri::State<'_, History>,
+    mode: tauri::State<'_, RuntimeMode>,
+) -> Result<NavigationTarget, String> {
+    navigate_history(&app, &documents, &history, *mode, true).await
+}
+
+#[tauri::command]
+async fn go_forward(
+    app: AppHandle,
+    documents: tauri::State<'_, Documents>,
+    history: tauri::State<'_, History>,
+    mode: tauri::State<'_, RuntimeMode>,
+) -> Result<NavigationTarget, String> {
+    navigate_history(&app, &documents, &history, *mode, false).await
+}
+
+async fn navigate_history(
+    app: &AppHandle,
+    documents: &Documents,
+    history: &History,
+    mode: RuntimeMode,
+    back: bool,
+) -> Result<NavigationTarget, String> {
+    let current = documents.current().ok_or_else(|| "no document".to_string())?;
+    let target = {
+        let mut history = history.0.lock().expect("history lock");
+        let stack = if back {
+            &mut history.back
+        } else {
+            &mut history.forward
+        };
+        stack.pop().ok_or_else(|| "no more history".to_string())?
+    };
+
+    match open_path(app, documents, mode, &target).await {
+        Ok(document) => {
+            let mut history = history.0.lock().expect("history lock");
+            let push_to = if back {
+                &mut history.forward
+            } else {
+                &mut history.back
+            };
+            push_to.push(PathBuf::from(current.path));
+            Ok(NavigationTarget::from(&document))
+        }
+        Err(message) => {
+            // 開けなかったら、ポップしたものを元の履歴に戻す
+            let mut history = history.0.lock().expect("history lock");
+            let stack = if back {
+                &mut history.back
+            } else {
+                &mut history.forward
+            };
+            stack.push(target);
+            Err(message)
+        }
+    }
+}
+
+/// 絶対パスを、いまのモードに応じて新しい文書として開く。
+/// スタンドアローンモードではファイルを読み、監視の対象も差し替える。
+async fn open_path(
+    app: &AppHandle,
+    documents: &Documents,
+    mode: RuntimeMode,
+    target: &Path,
+) -> Result<Document, String> {
+    let current = documents.current().ok_or_else(|| "no document".to_string())?;
+    match mode {
+        RuntimeMode::File => {
+            let document = standalone::open(target, current.generation + 1, current.version + 1)?;
+            crate::publish(app, document.clone());
+            if let Err(message) = standalone::watch(app.clone(), target.to_path_buf()) {
+                report(&message);
+            }
+            Ok(document)
+        }
+        // 段階6cで、rpc.open によりNeovim側にも同じファイルを開かせる
+        RuntimeMode::Nvim => {
+            Err("following links while previewing from Neovim isn't supported yet".to_string())
+        }
+    }
+}
+
 /// `--nvim <socket> --token <token>` ならNeovim連携モード、
 /// 単一の位置引数（ファイルパス）ならスタンドアローンモードにする。
 fn parse_args(argv: impl Iterator<Item = String>) -> Result<Mode, String> {
@@ -202,17 +369,28 @@ fn main() {
             }
         },
     };
+    let runtime_mode = match &launch {
+        Launch::Nvim(_) => RuntimeMode::Nvim,
+        Launch::File(..) => RuntimeMode::File,
+    };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Documents::default())
         .manage(Cursors::default())
         .manage(Session::default())
+        .manage(History::default())
+        .manage(standalone::Watching::default())
+        .manage(runtime_mode)
         .invoke_handler(tauri::generate_handler![
             current_document,
             current_cursor,
             resolve_image,
-            jump
+            jump,
+            app_mode,
+            open_link,
+            go_back,
+            go_forward
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
