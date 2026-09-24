@@ -18,72 +18,63 @@ Neovimで編集中のMarkdownを、GitHub風のスタイルで別ウィンドウ
 
 ## インストール
 
-次の2つを配置し、Neovimの設定に1行追加します。
+実行ファイルとLuaプラグインは、1つのアーカイブにまとめて配布しています。これをNeovimのパッケージ用ディレクトリ（`pack/*/start/`）に展開すると、プラグインは起動時に自動で読み込まれます。プラグインマネージャーは不要です。
 
-- **実行ファイル**：プレビューを表示するアプリ。`~/.local/bin/mdpeek`に置きます。
-- **Luaプラグイン**：`:MdPeek`などのコマンドを追加します。`~/.config/nvim/lua/mdpeek/`に置きます。
+以下はv0.4.0の例です。別の版を使う場合は、[Releases](https://github.com/tkrkmb/mdpeek/releases)で版を選び、`VERSION`をその値にしてください。
 
-以下はv0.3.0の例です。別の版を使う場合は、[Releases](https://github.com/tkrkmb/mdpeek/releases)で版を選び、手順1と2の`VERSION`を同じ値にしてください。
-
-### 1. 実行ファイルを置く
+### 1. アーカイブを展開する
 
 macOS：
 
 ```sh
-VERSION=v0.3.0
-curl -fLO "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-${VERSION}-universal-macos.tar.gz"
-tar -xzf "mdpeek-${VERSION}-universal-macos.tar.gz"
-mkdir -p ~/.local/bin
-mv "mdpeek-${VERSION}-universal-macos/mdpeek" ~/.local/bin/
+VERSION=v0.4.0
+DIR=~/.local/share/nvim/site/pack/mdpeek/start/mdpeek
+mkdir -p "$DIR"
+curl -fL "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-${VERSION}-universal-macos.tar.gz" \
+  | tar -xz --strip-components=1 -C "$DIR"
 ```
 
 Linux：
 
 ```sh
-VERSION=v0.3.0
-curl -fLO "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-${VERSION}-x86_64-linux.tar.gz"
-tar -xzf "mdpeek-${VERSION}-x86_64-linux.tar.gz"
-mkdir -p ~/.local/bin
-mv "mdpeek-${VERSION}-x86_64-linux/mdpeek" ~/.local/bin/
+VERSION=v0.4.0
+DIR=~/.local/share/nvim/site/pack/mdpeek/start/mdpeek
+mkdir -p "$DIR"
+curl -fL "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-${VERSION}-x86_64-linux.tar.gz" \
+  | tar -xz --strip-components=1 -C "$DIR"
 ```
 
-### 2. Luaプラグインを置く
-
-実行ファイルのアーカイブにはLuaプラグインが入っていません。同じ版のソースアーカイブから、`lua`ディレクトリだけを取り出します。
-
-```sh
-VERSION=v0.3.0
-curl -fL "https://github.com/tkrkmb/mdpeek/archive/refs/tags/${VERSION}.tar.gz" -o mdpeek-plugin.tar.gz
-mkdir -p ~/.config/nvim
-tar -xzf mdpeek-plugin.tar.gz --strip-components=1 -C ~/.config/nvim "mdpeek-${VERSION#v}/lua"
-```
-
-### 3. Neovimの設定に追記する
+### 2. Neovimの設定に追記する
 
 `~/.config/nvim/init.lua`に、次の1行を追記します。
 
 ```lua
-require("mdpeek").setup({ bin = vim.fn.expand("~/.local/bin/mdpeek") })
+require("mdpeek").setup({ bin = vim.fn.stdpath("data") .. "/site/pack/mdpeek/start/mdpeek/mdpeek" })
 ```
 
-### 4. 確認する
+### 3. 確認する
 
 Markdownファイルを開いて`:MdPeek`を実行します。別ウィンドウに本文が表示されれば完了です。
 
+### 更新と削除
+
+- 更新：`VERSION`を変えて、手順1のコマンドをもう一度実行します。
+- 削除：`~/.local/share/nvim/site/pack/mdpeek`を削除し、手順2の1行を消します。
+
 ### 補足
 
-**設定ディレクトリを変更している場合**：`:lua print(vim.fn.stdpath("config"))`で表示されるディレクトリを、手順2と3の`~/.config/nvim`の代わりに使ってください。
+**データディレクトリを変更している場合**：`:lua print(vim.fn.stdpath("data"))`で表示されるディレクトリを、手順1の`~/.local/share/nvim`の代わりに使ってください。
 
-**init.vimを使っている場合**：手順3では、`init.vim`に次の1行を追記します。
+**init.vimを使っている場合**：手順2では、`init.vim`に次の1行を追記します。
 
 ```vim
-lua require("mdpeek").setup({ bin = vim.fn.expand("~/.local/bin/mdpeek") })
+lua require("mdpeek").setup({ bin = vim.fn.stdpath("data") .. "/site/pack/mdpeek/start/mdpeek/mdpeek" })
 ```
 
 **macOSでブラウザからダウンロードした場合**：署名と公証をしていないため、隔離属性が付いて起動できないことがあります。配布元を確認したうえで、次を実行してください（`curl`で取得した場合は不要です）。
 
 ```sh
-xattr -dr com.apple.quarantine ~/.local/bin/mdpeek
+xattr -dr com.apple.quarantine ~/.local/share/nvim/site/pack/mdpeek/start/mdpeek/mdpeek
 ```
 
 ## 使い方
@@ -148,11 +139,12 @@ git clone https://github.com/tkrkmb/mdpeek.git
 cd mdpeek
 (cd ui && npm install)
 cargo tauri build --no-bundle
-mkdir -p ~/.local/bin
-cp src-tauri/target/release/mdpeek ~/.local/bin/mdpeek
+DIR=~/.local/share/nvim/site/pack/mdpeek/start/mdpeek
+mkdir -p "$DIR"
+cp -R lua src-tauri/target/release/mdpeek "$DIR/"
 ```
 
-フロントエンドは、`cargo tauri build`の中で自動的にビルドされます。Luaプラグインは、クローンしたリポジトリの`lua/mdpeek/`を`~/.config/nvim/lua/`にコピーしてください。
+フロントエンドは、`cargo tauri build`の中で自動的にビルドされます。配置先は配布版と同じなので、`setup`の書き方も同じです。
 
 ## 開発
 
