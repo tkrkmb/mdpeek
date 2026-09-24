@@ -1,10 +1,11 @@
 mod image;
 mod nvim;
 mod render;
+mod standalone;
 
 use std::sync::Mutex;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -17,6 +18,18 @@ const CURSOR_EVENT: &str = "mdpeek://cursor";
 pub struct Args {
     pub socket: String,
     pub token: String,
+}
+
+/// 起動引数から決まる、動く相手
+enum Mode {
+    Nvim(Args),
+    File(PathBuf),
+}
+
+/// 起動時にどちらの相手で始めるか（ファイルモードは、起動前に読み込みまで済ませておく）
+enum Launch {
+    Nvim(Args),
+    File(PathBuf, Document),
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -149,30 +162,45 @@ fn resolve_image(
     Ok(resolved.to_string_lossy().into_owned())
 }
 
-fn parse_args(argv: impl Iterator<Item = String>) -> Result<Args, String> {
+/// `--nvim <socket> --token <token>` ならNeovim連携モード、
+/// 単一の位置引数（ファイルパス）ならスタンドアローンモードにする。
+fn parse_args(argv: impl Iterator<Item = String>) -> Result<Mode, String> {
     let mut socket = None;
     let mut token = None;
+    let mut positional = Vec::new();
     let mut argv = argv;
     while let Some(arg) = argv.next() {
         match arg.as_str() {
             "--nvim" => socket = argv.next(),
             "--token" => token = argv.next(),
-            other => return Err(format!("unknown argument: {other}")),
+            other if other.starts_with("--") => return Err(format!("unknown argument: {other}")),
+            other => positional.push(other.to_string()),
         }
     }
-    match (socket, token) {
-        (Some(socket), Some(token)) => Ok(Args { socket, token }),
-        _ => Err("usage: mdpeek --nvim <socket> --token <token>".to_string()),
+    match (socket, token, positional.as_slice()) {
+        (Some(socket), Some(token), []) => Ok(Mode::Nvim(Args { socket, token })),
+        (None, None, [path]) => Ok(Mode::File(PathBuf::from(path))),
+        _ => Err("usage: mdpeek --nvim <socket> --token <token> | mdpeek <file>".to_string()),
     }
 }
 
 fn main() {
-    let args = match parse_args(std::env::args().skip(1)) {
-        Ok(args) => args,
+    let mode = match parse_args(std::env::args().skip(1)) {
+        Ok(mode) => mode,
         Err(message) => {
             report(&message);
             std::process::exit(2);
         }
+    };
+    let launch = match mode {
+        Mode::Nvim(args) => Launch::Nvim(args),
+        Mode::File(path) => match standalone::load(&path) {
+            Ok(document) => Launch::File(path, document),
+            Err(message) => {
+                report(&message);
+                std::process::exit(2);
+            }
+        },
     };
 
     tauri::Builder::default()
@@ -188,13 +216,23 @@ fn main() {
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(message) = nvim::run(handle.clone(), args).await {
-                    report(&message);
+            match launch {
+                Launch::Nvim(args) => {
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(message) = nvim::run(handle.clone(), args).await {
+                            report(&message);
+                        }
+                        // RPCが切断されたら、アプリを終了する
+                        handle.exit(0);
+                    });
                 }
-                // RPCが切断されたら、アプリを終了する
-                handle.exit(0);
-            });
+                Launch::File(path, document) => {
+                    crate::publish(&handle, document);
+                    if let Err(message) = standalone::watch(handle.clone(), path) {
+                        report(&message);
+                    }
+                }
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -203,7 +241,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_args, Cursors, Cursor, Document, Documents};
+    use super::{parse_args, Cursor, Cursors, Document, Documents, Mode};
 
     fn document(generation: u64, version: u64) -> Document {
         Document {
@@ -216,19 +254,48 @@ mod tests {
 
     #[test]
     fn parses_the_expected_arguments() {
-        let args = parse_args(
+        let mode = parse_args(
             ["--nvim", "/tmp/nvim.sock", "--token", "abc"]
                 .into_iter()
                 .map(String::from),
         )
-        .expect("args");
-        assert_eq!(args.socket, "/tmp/nvim.sock");
-        assert_eq!(args.token, "abc");
+        .expect("a mode");
+        match mode {
+            Mode::Nvim(args) => {
+                assert_eq!(args.socket, "/tmp/nvim.sock");
+                assert_eq!(args.token, "abc");
+            }
+            Mode::File(_) => panic!("expected nvim mode"),
+        }
     }
 
     #[test]
     fn rejects_missing_arguments() {
         assert!(parse_args(["--nvim", "/tmp/nvim.sock"].into_iter().map(String::from)).is_err());
+    }
+
+    #[test]
+    fn parses_a_single_file_argument() {
+        let mode = parse_args(["note.md"].into_iter().map(String::from)).expect("a mode");
+        match mode {
+            Mode::File(path) => assert_eq!(path, std::path::PathBuf::from("note.md")),
+            Mode::Nvim(_) => panic!("expected file mode"),
+        }
+    }
+
+    #[test]
+    fn rejects_mixed_arguments() {
+        assert!(parse_args(
+            ["--nvim", "/tmp/nvim.sock", "--token", "abc", "note.md"]
+                .into_iter()
+                .map(String::from)
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn rejects_two_file_arguments() {
+        assert!(parse_args(["a.md", "b.md"].into_iter().map(String::from)).is_err());
     }
 
     #[test]
