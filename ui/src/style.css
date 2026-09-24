@@ -1,11 +1,17 @@
 :root {
   color-scheme: light;
   --mdpeek-background: #ffffff;
+  --mdpeek-nav-fg: #1f2328;
+  --mdpeek-nav-bg: rgba(31, 35, 40, 0.06);
+  --mdpeek-nav-bg-hover: rgba(31, 35, 40, 0.12);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
   --mdpeek-background: #0d1117;
+  --mdpeek-nav-fg: #e6edf3;
+  --mdpeek-nav-bg: rgba(230, 237, 243, 0.08);
+  --mdpeek-nav-bg-hover: rgba(230, 237, 243, 0.16);
 }
 
 html,
@@ -21,6 +27,38 @@ body {
   /* 幅は窓いっぱいに使い、余白は左右で同じにする */
   padding: 24px 32px 48px;
   background-color: var(--mdpeek-background);
+}
+
+/* 戻る／進む。本文の左上に常時重ねる */
+.mdpeek-nav {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+}
+
+.mdpeek-nav button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: var(--mdpeek-nav-bg);
+  color: var(--mdpeek-nav-fg);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mdpeek-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.mdpeek-nav button:not(:disabled):hover {
+  background: var(--mdpeek-nav-bg-hover);
 }
 
 .mermaid-diagram {

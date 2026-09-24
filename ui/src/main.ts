@@ -7,6 +7,7 @@ import { renderDiagrams } from "./diagrams";
 import { resolveImages } from "./images";
 import { handleLink } from "./links";
 import { renderMath } from "./math";
+import { initHistoryButtons, initSwipeGestures } from "./navigation";
 import { buildTable, findBlock, type Block } from "./sourcepos";
 import { cycle, onThemeChange, start as startTheme } from "./theme";
 
@@ -25,6 +26,11 @@ type CursorEvent = {
 type NavigationTarget = {
   gen: number;
   version: number;
+};
+
+type HistoryAvailability = {
+  can_back: boolean;
+  can_forward: boolean;
 };
 
 /** リンクや履歴で移動した先。届いた文書と世代・版が一致したら、そちらを優先する */
@@ -160,6 +166,11 @@ function render(doc: Document | null): void {
   }
   // リンクや履歴での移動先なら、読んでいた位置ではなく先頭／見出しへ動く
   const navigation = matchPendingNavigation(doc.gen, doc.version);
+  if (doc.gen !== shownGen) {
+    // 対象世代が変わった(自分の操作でも、:MdPeekによる切り替えでも)ので、
+    // 戻る／進むボタンの有効/無効を最新の状態に合わせ直す
+    void refreshHistoryAvailability();
+  }
   shownGen = doc.gen;
   shownVersion = doc.version;
   const current = isCurrent(doc.version);
@@ -228,6 +239,18 @@ function nearestBlock(clientY: number): Block | null {
   return best;
 }
 
+let updateHistoryButtons: ((state: HistoryAvailability) => void) | null = null;
+
+/** 戻る／進むボタンの有効/無効を、いまの履歴に合わせ直す */
+async function refreshHistoryAvailability(): Promise<void> {
+  try {
+    const state = await invoke<HistoryAvailability>("history_state");
+    updateHistoryButtons?.(state);
+  } catch {
+    // 取得できなくても、表示は変えない
+  }
+}
+
 /** 相対パスの .md／.markdown リンクを開く。#見出し があれば、開いた後にそこへ動く */
 async function followLink(href: string): Promise<void> {
   const hashIndex = href.indexOf("#");
@@ -238,6 +261,8 @@ async function followLink(href: string): Promise<void> {
     pendingNavigation = { gen: target.gen, version: target.version, fragment };
   } catch {
     // 解決できなかった、または開けなかった。何もしない
+  } finally {
+    void refreshHistoryAvailability();
   }
 }
 
@@ -248,6 +273,8 @@ async function navigateHistory(command: "go_back" | "go_forward"): Promise<void>
     pendingNavigation = { gen: target.gen, version: target.version, fragment: null };
   } catch {
     // 履歴がない、または開けなかった。何もしない
+  } finally {
+    void refreshHistoryAvailability();
   }
 }
 
@@ -278,6 +305,16 @@ body.addEventListener("click", (event) => {
   }
   void invoke("jump", { gen: shownGen, version: shownVersion, line: block.startLine });
 });
+
+updateHistoryButtons = initHistoryButtons(
+  () => void navigateHistory("go_back"),
+  () => void navigateHistory("go_forward"),
+);
+initSwipeGestures(
+  () => void navigateHistory("go_back"),
+  () => void navigateHistory("go_forward"),
+);
+void refreshHistoryAvailability();
 
 startTheme();
 onThemeChange(() => {

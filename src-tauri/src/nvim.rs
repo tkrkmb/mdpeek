@@ -7,7 +7,7 @@ use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
 
-use crate::{render, Args, Cursor, Document, Session};
+use crate::{render, Args, Cursor, Document, Documents, History, Session};
 
 type Writer = Compat<WriteHalf<UnixStream>>;
 pub type Nvim = Neovim<Writer>;
@@ -55,6 +55,16 @@ async fn render_queue(app: AppHandle, mut queue: UnboundedReceiver<Value>) {
     while let Some(payload) = queue.recv().await {
         let payload = newest(payload, &mut queue);
         if let Some(document) = document_from(&payload) {
+            // 対象世代が変わっていたら、自分(open_link/go_back/go_forward)による
+            // ものかどうかを確かめ、そうでなければ(:MdPeekによる切り替えなど)
+            // リンクの履歴を空にする
+            let retargeted = app
+                .state::<Documents>()
+                .current()
+                .is_some_and(|current| current.generation != document.generation);
+            if retargeted {
+                app.state::<History>().reset_if_unexpected(document.generation);
+            }
             crate::publish(&app, document);
         }
     }

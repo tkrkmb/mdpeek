@@ -89,6 +89,29 @@ pub struct History(Mutex<HistoryState>);
 struct HistoryState {
     back: Vec<PathBuf>,
     forward: Vec<PathBuf>,
+    /// Neovim連携モードで、直前に自分（open_link/go_back/go_forward）が
+    /// 切り替えた先の世代。nvim.rsが、Neovimから届いた世代と比べるのに使う。
+    expected_generation: Option<u64>,
+}
+
+impl History {
+    /// `:MdPeek` など、自分の操作以外で対象世代が変わったら、履歴を空にする。
+    pub fn reset_if_unexpected(&self, generation: u64) {
+        let mut state = self.0.lock().expect("history lock");
+        if state.expected_generation == Some(generation) {
+            state.expected_generation = None;
+        } else {
+            state.back.clear();
+            state.forward.clear();
+        }
+    }
+}
+
+/// 戻る／進むそれぞれを辿れるかどうか
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct HistoryAvailability {
+    can_back: bool,
+    can_forward: bool,
 }
 
 /// ジャンプ要求のために、Neovimとの接続を預かる
@@ -211,6 +234,16 @@ fn app_mode(mode: tauri::State<'_, RuntimeMode>) -> &'static str {
     mode.as_str()
 }
 
+/// フロントエンドが、戻る／進むボタンの有効/無効を決めるために使う。
+#[tauri::command]
+fn history_state(history: tauri::State<'_, History>) -> HistoryAvailability {
+    let state = history.0.lock().expect("history lock");
+    HistoryAvailability {
+        can_back: !state.back.is_empty(),
+        can_forward: !state.forward.is_empty(),
+    }
+}
+
 /// 相対パスの `.md`／`.markdown` リンクを開く要求を受けたら、いまの文書の
 /// ディレクトリを基準に解決してから、新しい文書として開く。開けたら、いまの
 /// パスを戻る履歴に積み、進む履歴は空にする。
@@ -233,7 +266,7 @@ async fn open_link(
         .ok_or_else(|| "the document has no directory".to_string())?;
     let target = image::resolve_markdown_link(base, &href)?;
 
-    let navigation = open_path(&app, &documents, *mode, &session, &target).await?;
+    let navigation = open_path(&app, &documents, &history, *mode, &session, &target).await?;
 
     let mut history = history.0.lock().expect("history lock");
     history.back.push(PathBuf::from(current.path));
@@ -283,7 +316,7 @@ async fn navigate_history(
         stack.pop().ok_or_else(|| "no more history".to_string())?
     };
 
-    match open_path(app, documents, mode, session, &target).await {
+    match open_path(app, documents, history, mode, session, &target).await {
         Ok(navigation) => {
             let mut history = history.0.lock().expect("history lock");
             let push_to = if back {
@@ -315,6 +348,7 @@ async fn navigate_history(
 async fn open_path(
     app: &AppHandle,
     documents: &Documents,
+    history: &History,
     mode: RuntimeMode,
     session: &Session,
     target: &Path,
@@ -334,6 +368,9 @@ async fn open_path(
             let path = target.to_string_lossy().into_owned();
             let (generation, version) =
                 nvim::open(nvim, current.generation, current.version, &path).await?;
+            // これから届く本文の世代は、自分のこの操作によるもの。
+            // nvim.rsが受け取ったとき、外部からの切り替えと区別するために覚えておく
+            history.0.lock().expect("history lock").expected_generation = Some(generation);
             Ok(NavigationTarget { generation, version })
         }
     }
@@ -398,6 +435,7 @@ fn main() {
             resolve_image,
             jump,
             app_mode,
+            history_state,
             open_link,
             go_back,
             go_forward
@@ -429,7 +467,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_args, Cursor, Cursors, Document, Documents, Mode};
+    use super::{parse_args, Cursor, Cursors, Document, Documents, History, Mode};
 
     fn document(generation: u64, version: u64) -> Document {
         Document {
@@ -511,5 +549,38 @@ mod tests {
         let cursor = cursors.current().expect("a cursor");
         assert_eq!(cursor.generation, 1);
         assert_eq!(cursor.line, 42);
+    }
+
+    #[test]
+    fn keeps_history_for_its_own_expected_switch() {
+        let history = History::default();
+        {
+            let mut state = history.0.lock().expect("history lock");
+            state.back.push(std::path::PathBuf::from("/tmp/a.md"));
+        }
+        history.0.lock().expect("history lock").expected_generation = Some(2);
+
+        history.reset_if_unexpected(2);
+
+        let state = history.0.lock().expect("history lock");
+        assert_eq!(state.back.len(), 1, "own navigation should not clear history");
+        assert_eq!(state.expected_generation, None, "the marker should be consumed");
+    }
+
+    #[test]
+    fn clears_history_on_an_unexpected_switch() {
+        let history = History::default();
+        {
+            let mut state = history.0.lock().expect("history lock");
+            state.back.push(std::path::PathBuf::from("/tmp/a.md"));
+            state.forward.push(std::path::PathBuf::from("/tmp/b.md"));
+        }
+
+        // :MdPeek による切り替えなど、自分の操作以外で世代が変わった
+        history.reset_if_unexpected(5);
+
+        let state = history.0.lock().expect("history lock");
+        assert!(state.back.is_empty());
+        assert!(state.forward.is_empty());
     }
 }
