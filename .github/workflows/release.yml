@@ -46,6 +46,7 @@ jobs:
           name="mdpeek-${GITHUB_REF_NAME}-x86_64-linux"
           mkdir -p "dist/${name}"
           cp src-tauri/target/release/mdpeek README.md "dist/${name}/"
+          cp -R lua "dist/${name}/"
           tar -czf "dist/${name}.tar.gz" -C dist "${name}"
           echo "archive=dist/${name}.tar.gz" >> "$GITHUB_OUTPUT"
 
@@ -102,6 +103,7 @@ jobs:
             src-tauri/target/x86_64-apple-darwin/release/mdpeek
           lipo -info "dist/${name}/mdpeek"
           cp README.md "dist/${name}/"
+          cp -R lua "dist/${name}/"
           tar -czf "dist/${name}.tar.gz" -C dist "${name}"
           echo "archive=dist/${name}.tar.gz" >> "$GITHUB_OUTPUT"
 
