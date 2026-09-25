@@ -1,0 +1,47 @@
+name: test
+
+# main への push と、main に向けたPRで、テストを実行する
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      # LinuxのWebViewはWebKitGTKを使う
+      - name: Install the build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev
+
+      - name: Test the frontend
+        working-directory: ui
+        run: |
+          npm ci
+          npm test
+
+      # Rustのビルドは、ビルド済みのフロントエンドを埋め込む
+      - name: Build the frontend
+        working-directory: ui
+        run: npm run build
+
+      - name: Test the application
+        working-directory: src-tauri
+        run: cargo test --locked
