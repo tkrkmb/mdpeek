@@ -1,4 +1,4 @@
-//! 同じファイルを開いている窓を、後からの `mdpeek <file>` で前面に出す。
+//! 同じファイルを開いている窓を、後からの `mdsight <file>` で前面に出す。
 //! 窓ごとに、表示中の文書から決まる名前のUnixドメインソケットで待ち受ける。
 //! 受け付けるのは「前面に出る」の1種類だけ。
 
@@ -29,7 +29,7 @@ struct Owned {
 fn socket_dir() -> Result<PathBuf, String> {
     // SAFETY: getuid は引数を取らず、常に成功する
     let uid = unsafe { libc::getuid() };
-    let dir = std::env::temp_dir().join(format!("mdpeek-{uid}"));
+    let dir = std::env::temp_dir().join(format!("mdsight-{uid}"));
     match std::fs::DirBuilder::new().mode(0o700).create(&dir) {
         Ok(()) => {}
         Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
@@ -44,7 +44,7 @@ fn socket_dir() -> Result<PathBuf, String> {
 }
 
 /// 正規化済みの絶対パスから決まるソケットの名前。
-/// 版の違うmdpeekの間でも同じ名前になるように、FNV-1a（64bit）を使う。
+/// 版の違うmdsightの間でも同じ名前になるように、FNV-1a（64bit）を使う。
 fn socket_name(document: &Path) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in document.as_os_str().as_encoded_bytes() {
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn keeps_the_name_stable_across_builds() {
-        // FNV-1a の既知の値。変わると、版の違うmdpeekの窓を見つけられなくなる
+        // FNV-1a の既知の値。変わると、版の違うmdsightの窓を見つけられなくなる
         assert_eq!(socket_name(Path::new("")), "cbf29ce484222325.sock");
         assert_eq!(socket_name(Path::new("a")), "af63dc4c8601ec8c.sock");
     }

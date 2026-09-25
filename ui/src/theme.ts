@@ -5,7 +5,7 @@ import darkCss from "github-markdown-css/github-markdown-dark.css?inline";
 export type Theme = "system" | "light" | "dark";
 export type Appearance = "light" | "dark";
 
-const STORAGE_KEY = "mdpeek.theme";
+const STORAGE_KEY = "mdsight.theme";
 const ORDER: Theme[] = ["system", "light", "dark"];
 
 /**

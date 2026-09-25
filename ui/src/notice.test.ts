@@ -3,12 +3,12 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { flash, setProblem } from "./notice";
 
 function notice(): HTMLElement {
-  return document.getElementById("mdpeek-notice")!;
+  return document.getElementById("mdsight-notice")!;
 }
 
 beforeEach(() => {
   vi.useFakeTimers();
-  document.body.innerHTML = '<div id="mdpeek-notice" hidden></div>';
+  document.body.innerHTML = '<div id="mdsight-notice" hidden></div>';
   setProblem(null);
 });
 

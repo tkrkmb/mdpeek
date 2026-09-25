@@ -1,9 +1,9 @@
-local state = require("mdpeek.state")
+local state = require("mdsight.state")
 
 local M = {}
 
 local function warn(msg)
-  vim.notify("mdpeek: " .. msg, vim.log.levels.WARN)
+  vim.notify("mdsight: " .. msg, vim.log.levels.WARN)
 end
 
 -- 対象にできるバッファかどうかを調べる。使えない場合は理由を返す。
@@ -44,7 +44,7 @@ local function send_content()
     return
   end
   state.version = state.version + 1
-  pcall(vim.rpcnotify, state.chan, "mdpeek_content", {
+  pcall(vim.rpcnotify, state.chan, "mdsight_content", {
     gen = state.gen,
     version = state.version,
     path = vim.api.nvim_buf_get_name(state.buf),
@@ -58,7 +58,7 @@ local function send_cursor(line)
     return
   end
   state.last_line = line
-  pcall(vim.rpcnotify, state.chan, "mdpeek_cursor", { gen = state.gen, line = line })
+  pcall(vim.rpcnotify, state.chan, "mdsight_cursor", { gen = state.gen, line = line })
 end
 
 local function stop_cursor_timer()
@@ -149,7 +149,7 @@ local function set_autocmds(buf)
   if state.augroup then
     pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
   end
-  state.augroup = vim.api.nvim_create_augroup("mdpeek", { clear = true })
+  state.augroup = vim.api.nvim_create_augroup("mdsight", { clear = true })
   -- 本文が変わったら、デバウンスしてから送る
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
     group = state.augroup,
@@ -174,7 +174,7 @@ local function set_autocmds(buf)
       stop_cursor_timer()
     end,
   })
-  -- 対象バッファが消えたら、:MdPeekClose と同じ処理を行う
+  -- 対象バッファが消えたら、:MdSightClose と同じ処理を行う
   vim.api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
     group = state.augroup,
     buffer = buf,
@@ -222,18 +222,18 @@ function M.setup(opts)
   opts = opts or {}
   state.bin = opts.bin
 
-  vim.api.nvim_create_user_command("MdPeek", function()
+  vim.api.nvim_create_user_command("MdSight", function()
     M.open()
-  end, { desc = "Preview the current markdown buffer with mdpeek" })
+  end, { desc = "Preview the current markdown buffer with mdsight" })
 
-  vim.api.nvim_create_user_command("MdPeekClose", function()
+  vim.api.nvim_create_user_command("MdSightClose", function()
     M.close()
-  end, { desc = "Close the mdpeek preview" })
+  end, { desc = "Close the mdsight preview" })
 end
 
 function M.open()
   if type(state.bin) ~= "string" or state.bin == "" then
-    warn('setup({ bin = "<path to the mdpeek executable>" }) is required')
+    warn('setup({ bin = "<path to the mdsight executable>" }) is required')
     return
   end
 
@@ -262,7 +262,7 @@ function M.close()
   local rec = state.proc
   local chan = state.chan
   if chan then
-    pcall(vim.rpcnotify, chan, "mdpeek_close", {})
+    pcall(vim.rpcnotify, chan, "mdsight_close", {})
   end
   release()
   if rec and not rec.exited and rec.handle then

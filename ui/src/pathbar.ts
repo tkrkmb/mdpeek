@@ -34,7 +34,7 @@ export function showPath(path: string): void {
     return;
   }
   latest = path;
-  const text = bar.querySelector<HTMLElement>(".mdpeek-path-text")!;
+  const text = bar.querySelector<HTMLElement>(".mdsight-path-text")!;
   void home.then((dir) => {
     // 待っている間に別の文書へ移っていたら、そちらに任せる
     if (latest === path) {
@@ -45,9 +45,9 @@ export function showPath(path: string): void {
 
 /** 帯を用意する。収まらないパスは、パスの上にホバーしている間だけ横に流す */
 export function initPathBar(): void {
-  const element = document.querySelector<HTMLElement>(".mdpeek-path")!;
-  const track = element.querySelector<HTMLElement>(".mdpeek-path-track")!;
-  const text = element.querySelector<HTMLElement>(".mdpeek-path-text")!;
+  const element = document.querySelector<HTMLElement>(".mdsight-path")!;
+  const track = element.querySelector<HTMLElement>(".mdsight-path-track")!;
+  const text = element.querySelector<HTMLElement>(".mdsight-path-text")!;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   bar = element;
   home = homeDir().catch(() => null);
@@ -64,13 +64,13 @@ export function initPathBar(): void {
       return;
     }
     track.removeAttribute("title");
-    track.style.setProperty("--mdpeek-path-distance", `${-overflow}px`);
+    track.style.setProperty("--mdsight-path-distance", `${-overflow}px`);
     // 両端で止まる時間（全体の2割）を含めた長さにする
-    track.style.setProperty("--mdpeek-path-duration", `${(overflow / SPEED / 0.8).toFixed(2)}s`);
-    track.classList.add("mdpeek-path-track--scrolling");
+    track.style.setProperty("--mdsight-path-duration", `${(overflow / SPEED / 0.8).toFixed(2)}s`);
+    track.classList.add("mdsight-path-track--scrolling");
   });
 
   track.addEventListener("mouseleave", () => {
-    track.classList.remove("mdpeek-path-track--scrolling");
+    track.classList.remove("mdsight-path-track--scrolling");
   });
 }

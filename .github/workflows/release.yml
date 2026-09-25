@@ -50,9 +50,9 @@ jobs:
         id: pack
         run: |
           # 名前に版を含めず、releases/latest/download/ から常に同じ名前で取れるようにする
-          name="mdpeek-x86_64-linux"
+          name="mdsight-x86_64-linux"
           mkdir -p "dist/${name}"
-          cp src-tauri/target/release/mdpeek README.md LICENSE THIRD_PARTY_NOTICES.md "dist/${name}/"
+          cp src-tauri/target/release/mdsight README.md LICENSE THIRD_PARTY_NOTICES.md "dist/${name}/"
           cp -R lua "dist/${name}/"
           tar -czf "dist/${name}.tar.gz" -C dist "${name}"
           echo "archive=dist/${name}.tar.gz" >> "$GITHUB_OUTPUT"
@@ -81,7 +81,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
-          name: mdpeek-x86_64-linux
+          name: mdsight-x86_64-linux
           path: ${{ steps.pack.outputs.archive }}
 
   macos:
@@ -120,12 +120,12 @@ jobs:
       - name: Pack the executable
         id: pack
         run: |
-          name="mdpeek-universal-macos"
+          name="mdsight-universal-macos"
           mkdir -p "dist/${name}"
-          lipo -create -output "dist/${name}/mdpeek" \
-            src-tauri/target/aarch64-apple-darwin/release/mdpeek \
-            src-tauri/target/x86_64-apple-darwin/release/mdpeek
-          lipo -info "dist/${name}/mdpeek"
+          lipo -create -output "dist/${name}/mdsight" \
+            src-tauri/target/aarch64-apple-darwin/release/mdsight \
+            src-tauri/target/x86_64-apple-darwin/release/mdsight
+          lipo -info "dist/${name}/mdsight"
           cp README.md LICENSE THIRD_PARTY_NOTICES.md "dist/${name}/"
           cp -R lua "dist/${name}/"
           tar -czf "dist/${name}.tar.gz" -C dist "${name}"
@@ -154,5 +154,5 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         with:
-          name: mdpeek-universal-macos
+          name: mdsight-universal-macos
           path: ${{ steps.pack.outputs.archive }}

@@ -46,7 +46,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     fn workspace(name: &str) -> PathBuf {
-        let directory = std::env::temp_dir().join(format!("mdpeek-image-{name}"));
+        let directory = std::env::temp_dir().join(format!("mdsight-image-{name}"));
         let _ = fs::remove_dir_all(&directory);
         fs::create_dir_all(directory.join("img")).expect("a test directory");
         directory

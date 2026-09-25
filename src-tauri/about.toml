@@ -2,7 +2,7 @@
 # 実行ファイルに含まれるものだけを数える（開発用・ビルド時だけの依存は除く）
 ignore-dev-dependencies = true
 ignore-build-dependencies = true
-# mdpeek 自身（publish = false）は載せない
+# mdsight 自身（publish = false）は載せない
 private = { ignore = true }
 targets = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-apple-darwin"]
 # 選べるときは、先に書いたものを選ぶ

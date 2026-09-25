@@ -1,4 +1,4 @@
--- mdpeekの実行時の状態。init.luaとrpc.luaで共有する。
+-- mdsightの実行時の状態。init.luaとrpc.luaで共有する。
 return {
   bin = nil, -- setup({ bin = ... }) で設定された実行ファイルのパス
   token = nil, -- 起動トークン

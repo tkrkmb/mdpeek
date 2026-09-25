@@ -72,7 +72,7 @@ export async function renderDiagrams(
 
     try {
       counter += 1;
-      const { svg } = await mermaid.render(`mdpeek-diagram-${counter}`, source);
+      const { svg } = await mermaid.render(`mdsight-diagram-${counter}`, source);
       // 描き終えた時点で版を確認する
       if (!isCurrent()) {
         return false;

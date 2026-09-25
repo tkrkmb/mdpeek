@@ -57,8 +57,8 @@ export function initHistoryButtons(
   onBack: () => void,
   onForward: () => void,
 ): (state: { can_back: boolean; can_forward: boolean }) => void {
-  const back = document.getElementById("mdpeek-back");
-  const forward = document.getElementById("mdpeek-forward");
+  const back = document.getElementById("mdsight-back");
+  const forward = document.getElementById("mdsight-forward");
   back?.addEventListener("click", onBack);
   forward?.addEventListener("click", onForward);
 

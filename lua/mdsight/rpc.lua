@@ -1,4 +1,4 @@
-local state = require("mdpeek.state")
+local state = require("mdsight.state")
 
 -- アプリから呼べるのは、このモジュールが公開する関数だけにする。
 local M = {}
@@ -107,12 +107,12 @@ function M.open(gen, version, path)
     return false
   end
 
-  local mdpeek = require("mdpeek.init")
+  local mdsight = require("mdsight.init")
   local win = state.win
   local previous_buf = state.buf
 
   -- 開く前に、いまの対象のautocmdを外す
-  -- (バッファがwipeされてBufWipeoutが走っても :MdPeekClose にならないように)
+  -- (バッファがwipeされてBufWipeoutが走っても :MdSightClose にならないように)
   if state.augroup then
     pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
     state.augroup = nil
@@ -123,21 +123,21 @@ function M.open(gen, version, path)
   end)
   if not opened then
     -- 開けなかった。元の対象のautocmdを戻す
-    mdpeek.set_autocmds(previous_buf)
-    vim.notify("mdpeek: cannot open " .. path, vim.log.levels.WARN)
+    mdsight.set_autocmds(previous_buf)
+    vim.notify("mdsight: cannot open " .. path, vim.log.levels.WARN)
     return false
   end
 
   local new_buf = vim.api.nvim_win_get_buf(win)
-  local ok, reason = mdpeek.check_buf(new_buf)
+  local ok, reason = mdsight.check_buf(new_buf)
   if not ok then
     -- 開けたが、対象にできるバッファではなかった。対象は設定し直さない
     -- (ウィンドウはすでに新しいバッファを表示しているので、元のautocmdは戻さない)
-    vim.notify("mdpeek: cannot preview this buffer: " .. reason, vim.log.levels.WARN)
+    vim.notify("mdsight: cannot preview this buffer: " .. reason, vim.log.levels.WARN)
     return false
   end
 
-  mdpeek.set_target(new_buf, win)
+  mdsight.set_target(new_buf, win)
   return { gen = state.gen, version = state.version }
 end
 

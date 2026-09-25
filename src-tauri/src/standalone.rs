@@ -57,7 +57,7 @@ pub fn detach(path: &Path) -> Result<(), String> {
     use std::process::{Command, Stdio};
 
     let exe = std::env::current_exe()
-        .map_err(|err| format!("cannot find the mdpeek executable: {err}"))?;
+        .map_err(|err| format!("cannot find the mdsight executable: {err}"))?;
     Command::new(exe)
         .arg("--foreground")
         .arg(path)
@@ -67,7 +67,7 @@ pub fn detach(path: &Path) -> Result<(), String> {
         .process_group(0)
         .spawn()
         .map(|_| ())
-        .map_err(|err| format!("cannot start mdpeek in the background: {err}"))
+        .map_err(|err| format!("cannot start mdsight in the background: {err}"))
 }
 
 fn is_markdown(path: &Path) -> bool {
@@ -191,7 +191,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     fn workspace(name: &str) -> PathBuf {
-        let directory = std::env::temp_dir().join(format!("mdpeek-standalone-{name}"));
+        let directory = std::env::temp_dir().join(format!("mdsight-standalone-{name}"));
         let _ = fs::remove_dir_all(&directory);
         fs::create_dir_all(&directory).expect("a test directory");
         directory

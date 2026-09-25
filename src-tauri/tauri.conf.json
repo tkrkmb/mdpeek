@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MdPeek",
+  "productName": "MdSight",
   "version": "0.8.0",
-  "identifier": "dev.mdpeek",
+  "identifier": "dev.mdsight",
   "build": {
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../ui/dist"
@@ -11,7 +11,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "MdPeek",
+        "title": "MdSight",
         "width": 900,
         "height": 1000
       }

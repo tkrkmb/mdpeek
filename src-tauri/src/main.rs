@@ -13,11 +13,11 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// 最新の本文をフロントエンドへ届けるイベント名
-const DOCUMENT_EVENT: &str = "mdpeek://document";
+const DOCUMENT_EVENT: &str = "mdsight://document";
 /// カーソル行をフロントエンドへ届けるイベント名
-const CURSOR_EVENT: &str = "mdpeek://cursor";
+const CURSOR_EVENT: &str = "mdsight://cursor";
 /// 読み直しの失敗など、利用者に知らせる問題を届けるイベント名（`null` で取り消し）
-const PROBLEM_EVENT: &str = "mdpeek://problem";
+const PROBLEM_EVENT: &str = "mdsight://problem";
 
 pub struct Args {
     pub socket: String,
@@ -56,8 +56,8 @@ impl RuntimeMode {
     /// 窓の種類を、タイトルで見分けられるようにする
     fn title(self) -> &'static str {
         match self {
-            RuntimeMode::Nvim => "MdPeek — Linked to Neovim",
-            RuntimeMode::File => "MdPeek — Read Only",
+            RuntimeMode::Nvim => "MdSight — Linked to Neovim",
+            RuntimeMode::File => "MdSight — Read Only",
         }
     }
 }
@@ -109,7 +109,7 @@ struct HistoryState {
 }
 
 impl History {
-    /// `:MdPeek` など、自分の操作以外で対象世代が変わったら、履歴を空にする。
+    /// `:MdSight` など、自分の操作以外で対象世代が変わったら、履歴を空にする。
     /// 自分の操作以外だったら true を返す。
     pub fn reset_if_unexpected(&self, generation: u64) -> bool {
         let mut state = self.0.lock().expect("history lock");
@@ -184,7 +184,7 @@ impl Cursors {
 /// 書き込みの失敗でパニックしないようにする。
 fn report(message: &str) {
     use std::io::Write;
-    let _ = writeln!(std::io::stderr(), "mdpeek: {message}");
+    let _ = writeln!(std::io::stderr(), "mdsight: {message}");
 }
 
 pub fn publish(app: &AppHandle, document: Document) {
@@ -423,7 +423,7 @@ async fn open_path(
 }
 
 const USAGE: &str =
-    "usage: mdpeek --nvim <socket> --token <token> | mdpeek [--foreground] <file> | mdpeek --version";
+    "usage: mdsight --nvim <socket> --token <token> | mdsight [--foreground] <file> | mdsight --version";
 
 /// `--nvim <socket> --token <token>` ならNeovim連携モード、
 /// 単一の位置引数（ファイルパス、`--foreground` を付けてもよい）ならスタンドアローンモードにする。
@@ -473,7 +473,7 @@ fn main() {
     };
     let launch = match mode {
         Mode::Version => {
-            println!("mdpeek {}", env!("CARGO_PKG_VERSION"));
+            println!("mdsight {}", env!("CARGO_PKG_VERSION"));
             std::process::exit(0);
         }
         Mode::Nvim(args) => Launch::Nvim(args),
@@ -484,7 +484,7 @@ fn main() {
                     .file_name()
                     .map(|name| name.to_string_lossy().into_owned())
                     .unwrap_or_else(|| document.path.clone());
-                println!("MdPeek: brought the window already showing {name} to the front");
+                println!("MdSight: brought the window already showing {name} to the front");
                 std::process::exit(0);
             }
             Ok(document) if foreground => Launch::File(document),
@@ -559,7 +559,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("failed to build mdpeek")
+        .expect("failed to build mdsight")
         .run(|app, event| match event {
             // Tauriが開発ビルドで既定のアイコンを設定した後に届くので、ここで上書きする
             tauri::RunEvent::Ready => icon::follow_os(app),
@@ -719,7 +719,7 @@ mod tests {
             state.forward.push(std::path::PathBuf::from("/tmp/b.md"));
         }
 
-        // :MdPeek による切り替えなど、自分の操作以外で世代が変わった
+        // :MdSight による切り替えなど、自分の操作以外で世代が変わった
         history.reset_if_unexpected(5);
 
         let state = history.0.lock().expect("history lock");

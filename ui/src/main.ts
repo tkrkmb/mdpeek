@@ -185,7 +185,7 @@ function render(doc: Document | null): void {
   const navigation = matchPendingNavigation(doc.gen, doc.version);
   const switched = doc.gen !== shownGen;
   if (switched) {
-    // 対象世代が変わった(自分の操作でも、:MdPeekによる切り替えでも)ので、
+    // 対象世代が変わった(自分の操作でも、:MdSightによる切り替えでも)ので、
     // 戻る／進むボタンの有効/無効を最新の状態に合わせ直す
     void refreshHistoryAvailability();
   }
@@ -377,16 +377,16 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("resize", rebuildTable);
 
-void listen<Document>("mdpeek://document", (event) => {
+void listen<Document>("mdsight://document", (event) => {
   render(event.payload);
 });
 
-void listen<CursorEvent>("mdpeek://cursor", (event) => {
+void listen<CursorEvent>("mdsight://cursor", (event) => {
   receiveCursor(event.payload.gen, event.payload.line);
 });
 
 // 読み直しの失敗などは、切り離して動いていると端末に出ないので、ウィンドウに出す
-void listen<string | null>("mdpeek://problem", (event) => {
+void listen<string | null>("mdsight://problem", (event) => {
   setProblem(event.payload);
 });
 

@@ -19,7 +19,7 @@ rust_licenses=$(cd "$root/src-tauri" && cargo about generate about.hbs)
 {
   echo "# Third-party notices"
   echo
-  echo "MdPeek includes the following third-party software."
+  echo "MdSight includes the following third-party software."
   echo
   echo "# Rust crates"
   echo "$rust_licenses"

@@ -10,7 +10,7 @@ let flashText: string | null = null;
 let flashTimer: ReturnType<typeof setTimeout> | undefined;
 
 function element(): HTMLElement | null {
-  return document.getElementById("mdpeek-notice");
+  return document.getElementById("mdsight-notice");
 }
 
 function update(): void {

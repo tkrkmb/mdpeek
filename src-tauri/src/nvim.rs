@@ -25,17 +25,17 @@ impl Handler for NvimHandler {
     async fn handle_notify(&self, name: String, args: Vec<Value>, _nvim: Neovim<Writer>) {
         // 受け取ったらキューに渡してすぐ返す。描画の完了は待たない。
         match name.as_str() {
-            "mdpeek_content" => {
+            "mdsight_content" => {
                 if let Some(payload) = args.into_iter().next() {
                     let _ = self.queue.send(payload);
                 }
             }
-            "mdpeek_cursor" => {
+            "mdsight_cursor" => {
                 if let Some(cursor) = args.first().and_then(cursor_from) {
                     crate::publish_cursor(&self.app, cursor);
                 }
             }
-            "mdpeek_close" => self.app.exit(0),
+            "mdsight_close" => self.app.exit(0),
             _ => {}
         }
     }
@@ -56,7 +56,7 @@ async fn render_queue(app: AppHandle, mut queue: UnboundedReceiver<Value>) {
         let payload = newest(payload, &mut queue);
         if let Some(document) = document_from(&payload) {
             // 対象世代が変わっていたら、自分(open_link/go_back/go_forward)による
-            // ものかどうかを確かめ、そうでなければ(:MdPeekによる切り替えなど)
+            // ものかどうかを確かめ、そうでなければ(:MdSightによる切り替えなど)
             // リンクの履歴を空にして、隠れていれば窓を前に出す
             let retargeted = app
                 .state::<Documents>()
@@ -94,7 +94,7 @@ pub async fn run(app: AppHandle, args: Args) -> Result<(), String> {
 
     let registered = nvim
         .exec_lua(
-            r#"return require("mdpeek.rpc").register(...)"#,
+            r#"return require("mdsight.rpc").register(...)"#,
             vec![Value::from(args.token.as_str()), Value::from(chan)],
         )
         .await
@@ -126,7 +126,7 @@ fn document_generation(value: &Value) -> u64 {
     field(value, "gen").and_then(Value::as_u64).unwrap_or_default()
 }
 
-/// `mdpeek_cursor` の `{gen, line}` を取り出す。
+/// `mdsight_cursor` の `{gen, line}` を取り出す。
 fn cursor_from(value: &Value) -> Option<Cursor> {
     Some(Cursor {
         generation: field(value, "gen")?.as_u64()?,
@@ -160,7 +160,7 @@ fn document_from(value: &Value) -> Option<Document> {
 /// アプリからNeovimへジャンプを要求する。
 pub async fn jump(nvim: Nvim, gen: u64, version: u64, line: u64) -> Result<(), String> {
     nvim.exec_lua(
-        r#"return require("mdpeek.rpc").jump(...)"#,
+        r#"return require("mdsight.rpc").jump(...)"#,
         vec![Value::from(gen), Value::from(version), Value::from(line)],
     )
     .await
@@ -174,7 +174,7 @@ pub async fn jump(nvim: Nvim, gen: u64, version: u64, line: u64) -> Result<(), S
 pub async fn open(nvim: Nvim, gen: u64, version: u64, path: &str) -> Result<(u64, u64), String> {
     let result = nvim
         .exec_lua(
-            r#"return require("mdpeek.rpc").open(...)"#,
+            r#"return require("mdsight.rpc").open(...)"#,
             vec![Value::from(gen), Value::from(version), Value::from(path)],
         )
         .await

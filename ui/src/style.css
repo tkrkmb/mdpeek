@@ -1,51 +1,51 @@
 :root {
   color-scheme: light;
   /* 本文（github-markdown-css の .markdown-body）と同じフォント */
-  --mdpeek-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial,
+  --mdsight-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial,
     sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-  --mdpeek-background: #ffffff;
+  --mdsight-background: #ffffff;
   /* パスの帯の高さ（下の境界線を含む）。見出しへ移るときの余白にも使う */
-  --mdpeek-path-height: 35px;
-  --mdpeek-nav-fg: #1f2328;
-  --mdpeek-nav-bg: rgba(31, 35, 40, 0.06);
-  --mdpeek-nav-bg-hover: rgba(31, 35, 40, 0.12);
-  --mdpeek-notice-fg: #cf222e;
-  --mdpeek-notice-bg: #ffebe9;
-  --mdpeek-notice-border: rgba(255, 129, 130, 0.4);
-  --mdpeek-path-fg: #59636e;
-  --mdpeek-path-bg: #f6f8fa;
-  --mdpeek-path-border: #d1d9e0;
+  --mdsight-path-height: 35px;
+  --mdsight-nav-fg: #1f2328;
+  --mdsight-nav-bg: rgba(31, 35, 40, 0.06);
+  --mdsight-nav-bg-hover: rgba(31, 35, 40, 0.12);
+  --mdsight-notice-fg: #cf222e;
+  --mdsight-notice-bg: #ffebe9;
+  --mdsight-notice-border: rgba(255, 129, 130, 0.4);
+  --mdsight-path-fg: #59636e;
+  --mdsight-path-bg: #f6f8fa;
+  --mdsight-path-border: #d1d9e0;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --mdpeek-background: #0d1117;
-  --mdpeek-nav-fg: #e6edf3;
-  --mdpeek-nav-bg: rgba(230, 237, 243, 0.08);
-  --mdpeek-nav-bg-hover: rgba(230, 237, 243, 0.16);
-  --mdpeek-notice-fg: #ff7b72;
-  --mdpeek-notice-bg: #25171c;
-  --mdpeek-notice-border: rgba(248, 81, 73, 0.4);
-  --mdpeek-path-fg: #9198a1;
-  --mdpeek-path-bg: #151b23;
-  --mdpeek-path-border: #3d444d;
+  --mdsight-background: #0d1117;
+  --mdsight-nav-fg: #e6edf3;
+  --mdsight-nav-bg: rgba(230, 237, 243, 0.08);
+  --mdsight-nav-bg-hover: rgba(230, 237, 243, 0.16);
+  --mdsight-notice-fg: #ff7b72;
+  --mdsight-notice-bg: #25171c;
+  --mdsight-notice-border: rgba(248, 81, 73, 0.4);
+  --mdsight-path-fg: #9198a1;
+  --mdsight-path-bg: #151b23;
+  --mdsight-path-border: #3d444d;
 }
 
 html,
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--mdpeek-background);
+  background-color: var(--mdsight-background);
 }
 
 html {
   /* ページ内の見出しへ移ったとき、パスの帯に隠れないようにする */
-  scroll-padding-top: var(--mdpeek-path-height);
+  scroll-padding-top: var(--mdsight-path-height);
 }
 
 /* 表示中の文書のパス。窓の一番上に留め、本文とは違う窓の部品として見せる。
    ブラウザのアドレスバーと同じく、左端に戻る／進む、その右にパスを並べる */
-.mdpeek-path {
+.mdsight-path {
   position: sticky;
   top: 0;
   z-index: 10;
@@ -53,11 +53,11 @@ html {
   align-items: center;
   gap: 8px;
   box-sizing: border-box;
-  height: var(--mdpeek-path-height);
+  height: var(--mdsight-path-height);
   padding: 0 32px 0 8px;
-  border-bottom: 1px solid var(--mdpeek-path-border);
-  background-color: var(--mdpeek-path-bg);
-  color: var(--mdpeek-path-fg);
+  border-bottom: 1px solid var(--mdsight-path-border);
+  background-color: var(--mdsight-path-bg);
+  color: var(--mdsight-path-fg);
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   /* ウィンドウのタイトルと同じ大きさにする */
   font-size: 13px;
@@ -65,7 +65,7 @@ html {
 }
 
 /* 収まらないときは、ファイル名の側を残して左側を省略する */
-.mdpeek-path-track {
+.mdsight-path-track {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -75,30 +75,30 @@ html {
   text-overflow: ellipsis;
 }
 
-.mdpeek-path-text {
+.mdsight-path-text {
   direction: ltr;
   unicode-bidi: isolate;
 }
 
 /* ホバーしている間だけ、両端で少し止まりながら往復させる */
-.mdpeek-path-track--scrolling {
+.mdsight-path-track--scrolling {
   direction: ltr;
   text-overflow: clip;
 }
 
-.mdpeek-path-track--scrolling .mdpeek-path-text {
+.mdsight-path-track--scrolling .mdsight-path-text {
   display: inline-block;
-  animation: mdpeek-path-scroll var(--mdpeek-path-duration) linear infinite alternate;
+  animation: mdsight-path-scroll var(--mdsight-path-duration) linear infinite alternate;
 }
 
-@keyframes mdpeek-path-scroll {
+@keyframes mdsight-path-scroll {
   0%,
   10% {
     transform: translateX(0);
   }
   90%,
   100% {
-    transform: translateX(var(--mdpeek-path-distance));
+    transform: translateX(var(--mdsight-path-distance));
   }
 }
 
@@ -107,41 +107,41 @@ html {
   min-width: 200px;
   /* 幅は窓いっぱいに使い、余白は左右で同じにする */
   padding: 24px 32px 48px;
-  background-color: var(--mdpeek-background);
+  background-color: var(--mdsight-background);
 }
 
 /* 戻る／進む。パスの帯の左端に、帯の高さに収めて置く */
-.mdpeek-nav {
+.mdsight-nav {
   display: flex;
   flex: none;
   gap: 2px;
 }
 
-.mdpeek-nav button {
-  font-family: var(--mdpeek-font);
+.mdsight-nav button {
+  font-family: var(--mdsight-font);
   width: 26px;
   height: 26px;
   padding: 0;
   border: none;
   border-radius: 6px;
-  background: var(--mdpeek-nav-bg);
-  color: var(--mdpeek-nav-fg);
+  background: var(--mdsight-nav-bg);
+  color: var(--mdsight-nav-fg);
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
 }
 
-.mdpeek-nav button:disabled {
+.mdsight-nav button:disabled {
   opacity: 0.35;
   cursor: default;
 }
 
-.mdpeek-nav button:not(:disabled):hover {
-  background: var(--mdpeek-nav-bg-hover);
+.mdsight-nav button:not(:disabled):hover {
+  background: var(--mdsight-nav-bg-hover);
 }
 
 /* 知らせの帯。窓の下端に、横幅いっぱいに重ねる */
-.mdpeek-notice {
+.mdsight-notice {
   position: fixed;
   right: 0;
   bottom: 0;
@@ -149,16 +149,16 @@ html {
   z-index: 10;
   box-sizing: border-box;
   padding: 6px 32px;
-  border-top: 1px solid var(--mdpeek-notice-border);
-  background: var(--mdpeek-notice-bg);
-  color: var(--mdpeek-notice-fg);
-  font-family: var(--mdpeek-font);
+  border-top: 1px solid var(--mdsight-notice-border);
+  background: var(--mdsight-notice-bg);
+  color: var(--mdsight-notice-fg);
+  font-family: var(--mdsight-font);
   font-size: 13px;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
-.mdpeek-notice[hidden] {
+.mdsight-notice[hidden] {
   display: none;
 }
 
