@@ -25,9 +25,11 @@ mdpeek/
 ├── lua/mdpeek/       # Neovimプラグイン（リポジトリのルートをプラグインとして読み込めるようにする）
 ├── AGENTS.md
 ├── LICENSE           # MIT
-├── CHANGELOG.md      # 利用者から見える変更の履歴（Releaseの説明の元）
+├── CHANGELOG.md      # 利用者から見える変更の履歴、英語（Releaseの説明の元）
+├── CHANGELOG.ja.md   # CHANGELOG.md の日本語版
 ├── HANDOFF.md        # 引き継ぎ資料（毎回上書き）
-└── README.md
+├── README.md         # 英語
+└── README.ja.md      # README.md の日本語版
 ```
 
 ## 作業の進め方
@@ -99,9 +101,9 @@ chore(ui): bundle mermaid so the preview works offline
 
 ### 文言とドキュメント
 
-- 利用者に見える文言（ウィンドウ内の表示とラベル、端末への出力、`vim.notify`）は英語にする。README と CHANGELOG は日本語で書く
-- README などのドキュメントには、特定の版（`vX.Y.Z`）を書かない。導入手順は、最新の Release を指すURLを使う（`CHANGELOG.md` の見出しは除く）
-- 利用者から見える変更をコミットしたら、`CHANGELOG.md` の「未リリース」の節にも書き足す。版を出すときは、その見出しを `## [vX.Y.Z] - YYYY-MM-DD` に書き換えてからタグを付ける
+- 利用者に見える文言（ウィンドウ内の表示とラベル、端末への出力、`vim.notify`）は英語にする。README と CHANGELOG は、英語（`README.md`、`CHANGELOG.md`）と日本語（`README.ja.md`、`CHANGELOG.ja.md`）の両方を用意し、同じ内容に保つ。どちらかを変えたら、もう一方も同じコミットで直す
+- README などのドキュメントには、特定の版（`vX.Y.Z`）を書かない。導入手順は、最新の Release を指すURLを使う（`CHANGELOG.md`・`CHANGELOG.ja.md` の見出しは除く）
+- 利用者から見える変更をコミットしたら、`CHANGELOG.md` の「Unreleased」と `CHANGELOG.ja.md` の「未リリース」の節にも書き足す。版を出すときは、両方の見出しを `## [vX.Y.Z] - YYYY-MM-DD` に書き換えてからタグを付ける
 
 ### Neovimプラグイン（Lua）
 
