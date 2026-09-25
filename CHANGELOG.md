@@ -2,12 +2,16 @@
 
 English | [日本語](CHANGELOG.ja.md)
 
-User-visible changes to MdPeek, by version.
+User-visible changes to MdSight, by version.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY-MM-DD` and then tag it. The GitHub release notes are taken from that section.
 
 ## [Unreleased]
+
+### Changed
+
+- Renamed from MdPeek to MdSight, because other tools already use the name `mdpeek`. The repository, executable, archives, Neovim module and commands all use the new name. To upgrade, install again with the README steps, change your config to `require("mdsight").setup({ bin = ... })` with the new executable path, and use `:MdSight` / `:MdSightClose`. Delete the old `~/.local/share/nvim/site/pack/mdpeek`. The theme chosen with `T` resets to system once.
 
 ## [v0.8.0] - 2026-09-25
 

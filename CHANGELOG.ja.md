@@ -2,12 +2,16 @@
 
 [English](CHANGELOG.md) | 日本語
 
-MdPeekの利用者から見える変更を、版ごとに記録します。
+MdSightの利用者から見える変更を、版ごとに記録します。
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に倣います。
 
 新しい版を出すときは、「未リリース」の見出しを `## [vX.Y.Z] - YYYY-MM-DD` に書き換えてからタグを付けます。GitHubのReleaseの説明は、英語版（`CHANGELOG.md`）の同じ見出しの節から作られます。
 
 ## [未リリース]
+
+### 変更
+
+- 名前をMdPeekからMdSightに変えました。`mdpeek`という名前を、ほかのツールがすでに使っているためです。リポジトリ、実行ファイル、アーカイブ、Neovimのモジュールとコマンドが、すべて新しい名前になります。更新するときは、READMEの手順で入れ直し、設定を`require("mdsight").setup({ bin = ... })`（新しい実行ファイルのパス）に変え、`:MdSight`／`:MdSightClose`を使ってください。古い`~/.local/share/nvim/site/pack/mdpeek`は消してください。`T`キーで選んだテーマは、1回だけsystemに戻ります。
 
 ## [v0.8.0] - 2026-09-25
 
