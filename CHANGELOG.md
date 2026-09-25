@@ -9,6 +9,8 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 
 ## [Unreleased]
 
+## [v0.8.0] - 2026-09-25
+
 ### Added
 
 - English versions of the README and the changelog. The Japanese versions moved to `README.ja.md` and `CHANGELOG.ja.md`.
