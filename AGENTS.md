@@ -23,6 +23,7 @@ mdpeek/
 ├── ui/               # TypeScript + Vite
 ├── lua/mdpeek/       # Neovimプラグイン（リポジトリのルートをプラグインとして読み込めるようにする）
 ├── AGENTS.md
+├── LICENSE           # MIT
 ├── CHANGELOG.md      # 利用者から見える変更の履歴（Releaseの説明の元）
 ├── HANDOFF.md        # 引き継ぎ資料（毎回上書き）
 └── README.md
@@ -231,6 +232,8 @@ DO
 - Linux（Ubuntu、x86_64）とmacOS（IntelとApple Siliconの両方で動く1つの実行ファイル）を作る
 - どちらも、フロントエンドをビルドしてから `cargo build --release` を実行する
 - できた実行ファイルを `tar.gz` にまとめ、タグから作るGitHubのReleaseに添付する
+- `tar.gz` には、実行ファイルとともに `LICENSE` と `THIRD_PARTY_NOTICES.md` を入れる
+- `THIRD_PARTY_NOTICES.md` は、CIのビルドのたびに生成する。中身は、実行ファイルに含まれるRustの依存と、フロントエンドのバンドルに含まれたnpmパッケージの、名前・版・ライセンス文。生成に使う道具は版を固定して入れる。生成に失敗したら、ジョブを失敗させる
 - Releaseの説明は、`CHANGELOG.md` のうちタグと同じ見出し（`## [vX.Y.Z]`）の節から作る。その節が無ければ、ジョブを失敗させる
 - 利用者から見える変更をコミットしたら、`CHANGELOG.md` の「未リリース」の節にも日本語で書き足す。版を出すときは、その見出しを `## [vX.Y.Z] - YYYY-MM-DD` に書き換えてからタグを付ける
 
@@ -239,6 +242,7 @@ DO NOT
 - Windows向けのビルドはしない
 - 署名や公証、自動更新は行わない
 - GitHubが公式に出しているもの以外のActionは使わない
+- 生成した `THIRD_PARTY_NOTICES.md` をリポジトリにコミットしない（古くならないように）
 
 ### Tauri の設定
 
@@ -350,3 +354,11 @@ DO NOT
   - パスが長いとき、ボタンは隠れず、パスの左側が省略される。ホバーで流れる動きも保たれる
   - 知らせの帯が窓の下端いっぱいに出て、長い文言でもボタンと重ならない
   - ライト／ダークのどちらでも、ボタンが帯の見た目になじむ
+
+### 段階11：ライセンス
+
+- 実装するもの：MITの `LICENSE`（`Copyright (c) 2026 Takeru Kumabe`）、`THIRD_PARTY_NOTICES.md` の生成とCIでの同梱、READMEへのライセンスの節（自分のコードはMIT、同梱したライブラリの表示は `THIRD_PARTY_NOTICES.md` にあること）
+- 完了の条件
+  - リポジトリのルートに `LICENSE` があり、GitHubがMITと認識する
+  - 手元で生成の手順を実行すると `THIRD_PARTY_NOTICES.md` ができ、mermaid、KaTeX、github-markdown-css、Tauri、comrak が含まれる
+  - 手動実行したCIの成果物の `tar.gz` に、`LICENSE` と `THIRD_PARTY_NOTICES.md` が入っている
