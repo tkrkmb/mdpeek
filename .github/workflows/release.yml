@@ -49,7 +49,8 @@ jobs:
       - name: Pack the executable
         id: pack
         run: |
-          name="mdpeek-${GITHUB_REF_NAME}-x86_64-linux"
+          # 名前に版を含めず、releases/latest/download/ から常に同じ名前で取れるようにする
+          name="mdpeek-x86_64-linux"
           mkdir -p "dist/${name}"
           cp src-tauri/target/release/mdpeek README.md LICENSE THIRD_PARTY_NOTICES.md "dist/${name}/"
           cp -R lua "dist/${name}/"
@@ -119,7 +120,7 @@ jobs:
       - name: Pack the executable
         id: pack
         run: |
-          name="mdpeek-${GITHUB_REF_NAME}-universal-macos"
+          name="mdpeek-universal-macos"
           mkdir -p "dist/${name}"
           lipo -create -output "dist/${name}/mdpeek" \
             src-tauri/target/aarch64-apple-darwin/release/mdpeek \
