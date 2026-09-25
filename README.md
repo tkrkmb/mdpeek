@@ -21,27 +21,25 @@ Markdownを、GitHub風のスタイルで別ウィンドウに表示します。
 
 実行ファイルとLuaプラグインは、1つのアーカイブにまとめて配布しています。これをNeovimのパッケージ用ディレクトリ（`pack/*/start/`）に展開すると、プラグインは起動時に自動で読み込まれます。プラグインマネージャーは不要です。
 
-以下はv0.6.0の例です。別の版を使う場合は、[Releases](https://github.com/tkrkmb/mdpeek/releases)で版を選び、`VERSION`をその値にしてください。
+以下のコマンドは、最新の版を取得します。
 
 ### 1. アーカイブを展開する
 
 macOS：
 
 ```sh
-VERSION=v0.6.0
 DIR=~/.local/share/nvim/site/pack/mdpeek/start/mdpeek
 mkdir -p "$DIR"
-curl -fL "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-${VERSION}-universal-macos.tar.gz" \
+curl -fL "https://github.com/tkrkmb/mdpeek/releases/latest/download/mdpeek-universal-macos.tar.gz" \
   | tar -xz --strip-components=1 -C "$DIR"
 ```
 
 Linux：
 
 ```sh
-VERSION=v0.6.0
 DIR=~/.local/share/nvim/site/pack/mdpeek/start/mdpeek
 mkdir -p "$DIR"
-curl -fL "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-${VERSION}-x86_64-linux.tar.gz" \
+curl -fL "https://github.com/tkrkmb/mdpeek/releases/latest/download/mdpeek-x86_64-linux.tar.gz" \
   | tar -xz --strip-components=1 -C "$DIR"
 ```
 
@@ -59,7 +57,9 @@ Markdownファイルを開いて`:MdPeek`を実行します。別ウィンドウ
 
 ### 更新と削除
 
-- 更新：`VERSION`を変えて、手順1のコマンドをもう一度実行します。
+- 確認：`~/.local/share/nvim/site/pack/mdpeek/start/mdpeek/mdpeek --version`で、入っている版を表示します。
+- 更新：手順1のコマンドをもう一度実行すると、最新の版に置き換わります。変更点は[CHANGELOG.md](CHANGELOG.md)にあります。
+- 特定の版を使う：[Releases](https://github.com/tkrkmb/mdpeek/releases)で版を選び、手順1のURLの`latest/download`を`download/<版>`に置き換えます。
 - 削除：`~/.local/share/nvim/site/pack/mdpeek`を削除し、手順2の1行を消します。
 
 ### 補足
