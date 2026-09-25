@@ -179,3 +179,19 @@ cp -R lua src-tauri/target/release/mdpeek "$DIR/"
 ```
 
 リリース：`v`で始まるタグをpushすると、GitHub ActionsがLinuxとmacOSの実行ファイルをビルドし、GitHubのReleaseに添付します。
+
+同梱したライブラリのライセンス表示（`THIRD_PARTY_NOTICES.md`）は、リリースのたびにCIが生成します。手元で作るときは、[cargo-about](https://github.com/EmbarkStudios/cargo-about)を入れてから、フロントエンドをビルドして生成します。
+
+```sh
+cargo install cargo-about --locked --version 0.9.2 --features cli
+(cd ui && npm run build)
+scripts/third-party-notices.sh   # リポジトリのルートに THIRD_PARTY_NOTICES.md ができる
+```
+
+## ライセンス
+
+MdPeek自体は[MIT License](LICENSE)です。
+
+実行ファイルには、Tauri、comrak、mermaid、KaTeX、github-markdown-cssなどのライブラリが含まれています。それぞれのライセンスは、リリースのアーカイブに入っている`THIRD_PARTY_NOTICES.md`にまとめています。
+
+このうち、Neovimとの通信に使っている[nvim-rs](https://github.com/KillTheMule/nvim-rs)はLGPL-3.0です。MdPeekのソースコードはすべてこのリポジトリで公開しているので、nvim-rsを差し替えて実行ファイルを作り直すことができます（手順は「ソースコードからのビルド」を参照）。
