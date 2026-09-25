@@ -1,4 +1,4 @@
-# MdPeek 実装指示書
+# MdSight 実装指示書
 
 この文書に書かれたことだけを実装する。書かれていないことは実装しない。判断に迷ったら、推測で進めずに質問する。なお、質問は選択形式とすること。
 
@@ -17,12 +17,12 @@ Neovimのバッファ内容を、GitHub風のHTMLでプレビューするTauri�
 ## リポジトリ構成
 
 ```
-mdpeek/
+mdsight/
 ├── .github/workflows/ # リリース用のビルド
 ├── src-tauri/        # Rust
 ├── ui/               # TypeScript + Vite
 ├── scripts/          # THIRD_PARTY_NOTICES.md の生成、アイコンの書き出し
-├── lua/mdpeek/       # Neovimプラグイン（リポジトリのルートをプラグインとして読み込めるようにする）
+├── lua/mdsight/       # Neovimプラグイン（リポジトリのルートをプラグインとして読み込めるようにする）
 ├── AGENTS.md
 ├── LICENSE           # MIT
 ├── CHANGELOG.md      # 利用者から見える変更の履歴、英語（Releaseの説明の元）
@@ -109,10 +109,10 @@ chore(ui): bundle mermaid so the preview works offline
 
 DO
 
-- `require("mdpeek").setup({ bin = "<実行ファイルのパス>" })` で設定する。設定項目は `bin` だけにする
+- `require("mdsight").setup({ bin = "<実行ファイルのパス>" })` で設定する。設定項目は `bin` だけにする
 - 次の2つのコマンドを提供する
-  - `:MdPeek`：現在のバッファとウィンドウを対象にする。プレビューが開いていなければアプリを起動し、開いていれば対象を切り替える（本文もすぐに送る）
-  - `:MdPeekClose`：アプリに終了を通知する。応答がなければプロセスを終了させる。Lua側の状態、autocmd、タイマーもすべて解放する
+  - `:MdSight`：現在のバッファとウィンドウを対象にする。プレビューが開いていなければアプリを起動し、開いていれば対象を切り替える（本文もすぐに送る）
+  - `:MdSightClose`：アプリに終了を通知する。応答がなければプロセスを終了させる。Lua側の状態、autocmd、タイマーもすべて解放する
 - 対象にできるバッファを「`buftype` が空で、ファイル名があり、`filetype` が `markdown` のもの」に限る。それ以外なら理由を `vim.notify` で表示して、何もしない
 - RPCソケットには `vim.v.servername` を使う。空であれば `vim.fn.serverstart()` で作成する
 - アプリは `vim.system` を使い、引数の配列（`--nvim <socket> --token <起動トークン>`）で起動する。プロセスが終了したら、Lua側の状態を解放する
@@ -122,7 +122,7 @@ DO
 - カーソル位置の送信：対象ウィンドウでの `CursorMoved` / `CursorMovedI` を受けて、50ms間隔のスロットル（最新の値を送る）で行番号を送る。直前に送った行と同じなら送らない
 - 対象を設定したときは、スロットルを待たずに、その時点のカーソル行もすぐ送る
 - 対象ウィンドウが閉じたら（`WinClosed`）、カーソル位置の送信を止める
-- 対象バッファが削除されたら（`BufWipeout` / `BufDelete`）、`:MdPeekClose` と同じ処理を行う
+- 対象バッファが削除されたら（`BufWipeout` / `BufDelete`）、`:MdSightClose` と同じ処理を行う
 - ジャンプ要求を受けたら、1回の関数呼び出しの中で次のすべてを検証してから、`nvim_win_set_cursor(winid, {line, 0})` を実行する。検証に失敗したら、何もしない
   - 対象世代と版が、現在の値と一致すること
   - 対象ウィンドウが有効で、対象バッファを表示していること
@@ -136,20 +136,20 @@ DO NOT
 - ファイルを読まない。`BufWritePost` やファイル監視も使わない（ただし、リンクを辿る要求を受けたときは、対象ウィンドウで指定されたファイルを開いてよい）
 - `nvim_win_set_cursor` にウィンドウ番号 `0` を渡さない
 - 他のバッファに移動したとき、表示対象を自動で切り替えない
-- アプリ側から任意のLuaコードを実行させる口を作らない。アプリから呼べるのは、`require("mdpeek.rpc")` が公開する固定の関数（`register`、`jump`、`open`）だけにする
+- アプリ側から任意のLuaコードを実行させる口を作らない。アプリから呼べるのは、`require("mdsight.rpc")` が公開する固定の関数（`register`、`jump`、`open`）だけにする
 
 ### RPC（NeovimとRustの間）
 
 DO
 
-- アプリは起動したらソケットに接続し、`nvim_get_api_info()` で自分のチャネルIDを取得する。その後、`nvim_exec_lua('return require("mdpeek.rpc").register(...)', {token, chan})` を呼ぶ
+- アプリは起動したらソケットに接続し、`nvim_get_api_info()` で自分のチャネルIDを取得する。その後、`nvim_exec_lua('return require("mdsight.rpc").register(...)', {token, chan})` を呼ぶ
 - `register` はトークンを検証してチャネルを記録し、初期状態（対象世代、版、本文の行配列、文書の絶対パス、カーソル行）を返す
 - Neovimからアプリへの通知は、`vim.rpcnotify(chan, name, payload)` で送る。通知の種類は次の3つに限る
-  - `mdpeek_content`：`{gen, version, path, lines}`
-  - `mdpeek_cursor`：`{gen, line}`
-  - `mdpeek_close`：`{}`
-- アプリからNeovimへのジャンプは、`nvim_exec_lua('return require("mdpeek.rpc").jump(...)', {gen, version, line})` で行う
-- アプリからNeovimへのファイルを開く要求は、`nvim_exec_lua('return require("mdpeek.rpc").open(...)', {gen, version, path})` で行う。`path` は絶対パス。戻り値の真偽で、開けたかどうかをアプリに伝える
+  - `mdsight_content`：`{gen, version, path, lines}`
+  - `mdsight_cursor`：`{gen, line}`
+  - `mdsight_close`：`{}`
+- アプリからNeovimへのジャンプは、`nvim_exec_lua('return require("mdsight.rpc").jump(...)', {gen, version, line})` で行う
+- アプリからNeovimへのファイルを開く要求は、`nvim_exec_lua('return require("mdsight.rpc").open(...)', {gen, version, path})` で行う。`path` は絶対パス。戻り値の真偽で、開けたかどうかをアプリに伝える
 - RPCが切断されたら、アプリを終了する
 
 DO NOT
@@ -171,7 +171,7 @@ DO
   - シンボリックリンクを実体のパスに解決する
   - ファイルが存在し、拡張子が png、jpg、jpeg、gif、webp、svg のいずれかである場合だけ、そのファイル単体をassetプロトコルのスコープに追加して、絶対パスを返す
 - 画像パスの解決には、`cargo test` で動くテストを書く
-- 起動引数が `--nvim <socket> --token <token>` ならNeovim連携モード、単一の位置引数（ファイルパス、`--foreground` を付けてもよい）ならスタンドアローンモードとして起動する。`--version` だけなら、`mdpeek <版>`（版は `Cargo.toml` の値）を標準出力に1行書いて終了する。それ以外の引数の組み合わせはエラーを表示して終了する
+- 起動引数が `--nvim <socket> --token <token>` ならNeovim連携モード、単一の位置引数（ファイルパス、`--foreground` を付けてもよい）ならスタンドアローンモードとして起動する。`--version` だけなら、`mdsight <版>`（版は `Cargo.toml` の値）を標準出力に1行書いて終了する。それ以外の引数の組み合わせはエラーを表示して終了する
 - スタンドアローンモードでは、指定されたファイルを読み、GFMのHTMLに変換して表示する。ファイルが存在しないか、拡張子が `md`／`markdown` でなければ、エラーを表示して終了する
 - スタンドアローンモードでは、ファイルを検証できたら、端末から切り離した子プロセス（別のプロセスグループ、標準入出力は捨てる）としてウィンドウを開き、コマンド自体はすぐに終了する。`--foreground` を付けたときだけ、切り離さずにそのまま動かす（切り離す子プロセスの起動にも、この引数と正規化済みの絶対パスを使う）。Neovim連携モードでは切り離さない
 - スタンドアローンモードでは、開いているファイルを監視し、変更されたら読み直して表示を更新する。世代は「開くファイルが変わるたび」、版は「読み直すたび」に1増やす
@@ -179,14 +179,14 @@ DO
 - 文書内の相対パスで、拡張子が `md`／`markdown`（末尾に `#見出し` が付いていてもよい）のリンクを開く要求を受けたら、いまの文書のディレクトリを基準にパスを解決する（手順は画像の解決と同じ：パーセントデコード、シンボリックリンクの解決、存在の確認）。解決できたら、そのファイルを新しい文書として開く。Neovim連携モードでは、Rustから `rpc.open` を呼んでNeovim側にも同じファイルを開かせ、対象を切り替えさせる
 - リンクで開いた文書の履歴を、戻る／進むで辿れるようにする。戻る・進むとも、開き直す手順は上と同じ（スタンドアローンモードならファイルを読み直す、Neovim連携モードなら `rpc.open` を呼ぶ）。Neovim連携モードで `rpc.open` が失敗を返したら、履歴を動かさない
 - 戻る／進むそれぞれを辿れるかどうかを、フロントエンドが取得できるコマンドを用意する
-- Neovim連携モードで、`rpc.open` 以外の理由（`:MdPeek` による対象の切り替えなど）で対象世代が変わったら、リンクの履歴を空にし、窓が隠れていれば前面に出す。前面に出すときはフォーカスを移さない（Neovimでの入力を妨げない）。macOSでは `NSWindow` の `orderFrontRegardless`、Linuxでは GDK のウィンドウの `raise` を使う。LinuxのWaylandでは前面に出ないことがあり、それは既知の制限としてREADMEに書く
+- Neovim連携モードで、`rpc.open` 以外の理由（`:MdSight` による対象の切り替えなど）で対象世代が変わったら、リンクの履歴を空にし、窓が隠れていれば前面に出す。前面に出すときはフォーカスを移さない（Neovimでの入力を妨げない）。macOSでは `NSWindow` の `orderFrontRegardless`、Linuxでは GDK のウィンドウの `raise` を使う。LinuxのWaylandでは前面に出ないことがあり、それは既知の制限としてREADMEに書く
 - フロントエンドが起動時のモード（Neovim連携／スタンドアローン）を取得できるコマンドを用意する
-- スタンドアローンモードでは、表示中の文書を開いている窓を、後から `mdpeek <file>` で同じファイルを指定したときに前面に出せるようにする
+- スタンドアローンモードでは、表示中の文書を開いている窓を、後から `mdsight <file>` で同じファイルを指定したときに前面に出せるようにする
   - 表示中の文書の正規化済みの絶対パスから決まる名前で、Unixドメインソケットを待ち受ける。置き場所は一時ディレクトリの下の、自分のユーザーだけが読み書きできる（`0700`）ディレクトリにする
   - 受け付ける要求は「前面に出る」の1種類だけにする。受け取ったら、最小化を解いて窓を前面に出し、フォーカスを移す。それ以外のデータは読み捨てて接続を閉じる
   - 表示中の文書が替わったら、古いソケットを消して、新しい文書の名前で待ち受け直す。その名前で別の窓がすでに待ち受けていたら、待ち受けない（文書は移る）
   - 終了するときに、自分のソケットを消す
-- `mdpeek <file>` は、ファイルを検証した後、切り離す前に、そのファイルのソケットへの接続を試す。つながったら前面化を要求し、既存の窓を前面に出したことを標準出力に1行書いて、ウィンドウを開かずに終了する。つながらなければ、残っているソケットのファイルを消して、いまどおり起動する
+- `mdsight <file>` は、ファイルを検証した後、切り離す前に、そのファイルのソケットへの接続を試す。つながったら前面化を要求し、既存の窓を前面に出したことを標準出力に1行書いて、ウィンドウを開かずに終了する。つながらなければ、残っているソケットのファイルを消して、いまどおり起動する
 - アプリのアイコンは、ライト用（白い地）とダーク用（紺がかった黒の地）の2枚を実行ファイルに埋め込む。ライト用は `src-tauri/icons/icon.png`、ダーク用は `src-tauri/icons/icon-dark.png` に置く。元のSVG（`icon.svg`、`icon-dark.svg`）も同じディレクトリに置き、PNGは `scripts/render-icons.swift`（macOSのWebKitで描く）で書き出す
 - 窓を作った直後に、OSのテーマ（`window.theme()`）に合うほうのアイコンを設定する。開発ビルドでもリリースビルドでも、同じように設定する
 - フロントエンドから「ライト／ダーク」を受け取って、アイコンを差し替えるコマンドを用意する。差し替える先は、macOSでは Dock のアイコン（`NSApplication` の `setApplicationIconImage`）、Linuxでは窓のアイコンにする。LinuxのWaylandでは反映されないことがあり、それは既知の制限としてREADMEに書く
@@ -243,7 +243,7 @@ DO
 - Linux（Ubuntu、x86_64）とmacOS（IntelとApple Siliconの両方で動く1つの実行ファイル）を作る
 - どちらも、フロントエンドをビルドしてから `cargo build --release` を実行する
 - できた実行ファイルを `tar.gz` にまとめ、タグから作るGitHubのReleaseに添付する
-- 添付する `tar.gz` の名前には版を含めない（`mdpeek-universal-macos.tar.gz`、`mdpeek-x86_64-linux.tar.gz`）。`releases/latest/download/` から常に同じ名前で取得できるようにする
+- 添付する `tar.gz` の名前には版を含めない（`mdsight-universal-macos.tar.gz`、`mdsight-x86_64-linux.tar.gz`）。`releases/latest/download/` から常に同じ名前で取得できるようにする
 - `tar.gz` には、実行ファイルとともに `LICENSE` と `THIRD_PARTY_NOTICES.md` を入れる
 - `THIRD_PARTY_NOTICES.md` は、CIのビルドのたびに生成する。中身は、実行ファイルに含まれるRustの依存と、フロントエンドのバンドルに含まれたnpmパッケージの、名前・版・ライセンス文。生成に使う道具は版を固定して入れる。生成に失敗したら、ジョブを失敗させる
 - Releaseの説明は、`CHANGELOG.md` のうちタグと同じ見出し（`## [vX.Y.Z]`）の節から作る。その節が無ければ、ジョブを失敗させる
@@ -259,7 +259,7 @@ DO NOT
 
 DO
 
-- ウィンドウは、1つのプロセスにつき1枚だけにする。タイトルは、Neovim連携モードでは `MdPeek — Linked to Neovim`、スタンドアローンモードでは `MdPeek — Read Only` にする
+- ウィンドウは、1つのプロセスにつき1枚だけにする。タイトルは、Neovim連携モードでは `MdSight — Linked to Neovim`、スタンドアローンモードでは `MdSight — Read Only` にする
 - CSPは、同梱したスクリプトとスタイル、Tauri IPC、assetプロトコル、`https:` の画像、`data:` のフォントと画像に限って許可する。KaTeXとMermaidの動作に必要なインラインスタイルは許可する
 - `beforeBuildCommand` にフロントエンドのビルドを登録する
 
@@ -273,19 +273,19 @@ DO NOT
 
 ### 段階1：接続と基本表示
 
-- 実装するもの：`setup`、`:MdPeek`、`:MdPeekClose`、アプリの起動、RPCでの登録、初期本文の表示（GFMとgithub-markdown-cssのライトテーマ）、終了処理
+- 実装するもの：`setup`、`:MdSight`、`:MdSightClose`、アプリの起動、RPCでの登録、初期本文の表示（GFMとgithub-markdown-cssのライトテーマ）、終了処理
 - 完了の条件
-  - `:MdPeek` で本文が表示される
-  - `:MdPeek` を連打しても、アプリは2つ起動しない
-  - `:MdPeekClose`、プレビューを閉じる操作、Neovimの終了のいずれでも、両側の状態が解放され、その後で再度 `:MdPeek` できる
+  - `:MdSight` で本文が表示される
+  - `:MdSight` を連打しても、アプリは2つ起動しない
+  - `:MdSightClose`、プレビューを閉じる操作、Neovimの終了のいずれでも、両側の状態が解放され、その後で再度 `:MdSight` できる
 
 ### 段階2：自動更新
 
-- 実装するもの：`TextChanged` / `TextChangedI` による本文の送信、版による破棄、スクロール位置の保持、`:MdPeek` による対象の切り替え
+- 実装するもの：`TextChanged` / `TextChangedI` による本文の送信、版による破棄、スクロール位置の保持、`:MdSight` による対象の切り替え
 - 完了の条件
   - 入力を止めてから約200ms後に、表示が更新される
   - 更新の前後で、読んでいた位置が保たれる
-  - 別のバッファで `:MdPeek` すると、表示がそのバッファに切り替わる
+  - 別のバッファで `:MdSight` すると、表示がそのバッファに切り替わる
 
 ### 段階3：描画機能
 
@@ -312,9 +312,9 @@ DO NOT
 
 ### 段階6a：スタンドアローン表示とファイル監視
 
-- 実装するもの：起動引数によるモード分岐、`mdpeek <file>` でのファイルの読み込みと表示、ファイルの変更監視と再描画
+- 実装するもの：起動引数によるモード分岐、`mdsight <file>` でのファイルの読み込みと表示、ファイルの変更監視と再描画
 - 完了の条件
-  - `mdpeek README.md` のようにファイルを指定して起動すると、本文が表示される
+  - `mdsight README.md` のようにファイルを指定して起動すると、本文が表示される
   - 存在しないファイルや、拡張子が `md`／`markdown` でないファイルを指定すると、エラーを表示して終了する
   - 別のエディタでファイルを上書き保存すると、表示が自動で更新される
 
@@ -330,7 +330,7 @@ DO NOT
 
 - 実装するもの：`rpc.open` の追加、プレビューでのリンク遷移をNeovim側の対象ウィンドウに反映する処理
 - 完了の条件
-  - `:MdPeek` で表示中に、プレビューで相対 `.md` リンクをクリックすると、対象ウィンドウでそのファイルが開き、対象が切り替わる
+  - `:MdSight` で表示中に、プレビューで相対 `.md` リンクをクリックすると、対象ウィンドウでそのファイルが開き、対象が切り替わる
   - 対象バッファに保存されていない変更があり開けなかった場合は、通知が表示され、対象もプレビューも元のままになる
   - 戻る／進むのキーで、Neovim側の対象も一緒に切り替わる
 
@@ -338,19 +338,19 @@ DO NOT
 
 - 実装するもの：モードに応じたタイトル、表示中の文書のパスを出す帯
 - 完了の条件
-  - `:MdPeek` で開いた窓のタイトルが `MdPeek — Linked to Neovim`、`mdpeek <file>` で開いた窓のタイトルが `MdPeek — Read Only` になる
-  - 帯に表示中の文書のパスが出て、リンク、戻る／進む、`:MdPeek` による切り替えのたびに更新される
+  - `:MdSight` で開いた窓のタイトルが `MdSight — Linked to Neovim`、`mdsight <file>` で開いた窓のタイトルが `MdSight — Read Only` になる
+  - 帯に表示中の文書のパスが出て、リンク、戻る／進む、`:MdSight` による切り替えのたびに更新される
   - 長いパスは左側が省略され、ホバーしたときだけ流れる
   - 帯があっても、スクロール同期の位置とカーソル追従（上から1/3）がずれない
 
 ### 段階8：同じファイルの窓を前面に出す
 
-- 実装するもの：スタンドアローンモードの窓ごとのUnixドメインソケットと、`mdpeek <file>` からの前面化の要求。Neovim連携モードでの `:MdPeek` による前面化。READMEへの「前面に出るのは同じ種類（Read Only）の窓だけ」の追記
+- 実装するもの：スタンドアローンモードの窓ごとのUnixドメインソケットと、`mdsight <file>` からの前面化の要求。Neovim連携モードでの `:MdSight` による前面化。READMEへの「前面に出るのは同じ種類（Read Only）の窓だけ」の追記
 - 完了の条件
-  - `mdpeek a.md` で開いた後、もう一度 `mdpeek a.md` とすると、新しい窓は開かず、既存の窓が前面に出る。最小化していても出る。ターミナルに、そのことが1行表示される
-  - 相対リンクで `b.md` に移った窓は、`mdpeek b.md` で前面に出て、`mdpeek a.md` では新しい窓が開く
-  - 窓を閉じた後や、プロセスが異常終了した後でも、`mdpeek a.md` で新しい窓が開く
-  - Neovimで別のバッファに `:MdPeek` すると、隠れていたプレビューが前面に出て、入力はNeovimに残る
+  - `mdsight a.md` で開いた後、もう一度 `mdsight a.md` とすると、新しい窓は開かず、既存の窓が前面に出る。最小化していても出る。ターミナルに、そのことが1行表示される
+  - 相対リンクで `b.md` に移った窓は、`mdsight b.md` で前面に出て、`mdsight a.md` では新しい窓が開く
+  - 窓を閉じた後や、プロセスが異常終了した後でも、`mdsight a.md` で新しい窓が開く
+  - Neovimで別のバッファに `:MdSight` すると、隠れていたプレビューが前面に出て、入力はNeovimに残る
 
 ### 段階9：表示の英語化
 
@@ -376,10 +376,10 @@ DO NOT
 
 ### 段階12：ドキュメントから版をなくす
 
-- 実装するもの：Releaseに添付する `tar.gz` の名前から版を外す変更、READMEの導入手順を最新の Release を指すURLにする変更、`mdpeek --version`
+- 実装するもの：Releaseに添付する `tar.gz` の名前から版を外す変更、READMEの導入手順を最新の Release を指すURLにする変更、`mdsight --version`
 - 完了の条件
   - README に特定の版が書かれていない
-  - `mdpeek --version` で、`Cargo.toml` と同じ版が表示される
+  - `mdsight --version` で、`Cargo.toml` と同じ版が表示される
   - 手動実行したCIの成果物の名前に、版が含まれていない
   - 次の版を出した後、READMEの導入手順のコマンドで、その版がダウンロードできる
 
@@ -398,3 +398,11 @@ DO NOT
 - 完了の条件
   - `main` に push すると、テストのワークフローが動き、成功する
   - テストが1件でも失敗すると、ワークフローが失敗する
+
+### 段階15：名称をMdSightに変える
+
+- 実装するもの：コード、設定、CI、README、CHANGELOG の中の名称を、`mdpeek`／`MdPeek` から `mdsight`／`MdSight` に変える（Luaのモジュール名とコマンド、Cargo・npmのパッケージ名、実行ファイル名、Tauriの identifier、窓のタイトル、RPCの通知名、ソケット名、`tar.gz` の名前、README の導入手順のURL）。CHANGELOG の既存の版の節は書き換えず、「Unreleased」と「未リリース」に、名称の変更と設定の書き換え方（`require("mdsight")`、`:MdSight`）を書く
+- 完了の条件
+  - CHANGELOG の既存の版の節を除いて、リポジトリに `mdpeek`／`MdPeek` が残っていない
+  - `require("mdsight").setup` と `:MdSight`／`:MdSightClose`、`mdsight <file>` で、これまでと同じように動く
+  - `mdsight --version` で、`Cargo.toml` と同じ版が表示される
