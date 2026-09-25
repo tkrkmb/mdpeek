@@ -48,6 +48,14 @@ impl RuntimeMode {
             RuntimeMode::File => "file",
         }
     }
+
+    /// 窓の種類を、タイトルで見分けられるようにする
+    fn title(self) -> &'static str {
+        match self {
+            RuntimeMode::Nvim => "MdPeek — Linked to Neovim",
+            RuntimeMode::File => "MdPeek — Read Only",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -485,6 +493,9 @@ fn main() {
             go_forward
         ])
         .setup(move |app| {
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_title(runtime_mode.title())?;
+            }
             let handle = app.handle().clone();
             match launch {
                 Launch::Nvim(args) => {
