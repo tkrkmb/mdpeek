@@ -10,6 +10,9 @@
   --mdpeek-notice-fg: #cf222e;
   --mdpeek-notice-bg: #ffebe9;
   --mdpeek-notice-border: rgba(255, 129, 130, 0.4);
+  --mdpeek-path-fg: #59636e;
+  --mdpeek-path-bg: #f6f8fa;
+  --mdpeek-path-border: #d1d9e0;
 }
 
 :root[data-theme="dark"] {
@@ -21,6 +24,9 @@
   --mdpeek-notice-fg: #ff7b72;
   --mdpeek-notice-bg: #25171c;
   --mdpeek-notice-border: rgba(248, 81, 73, 0.4);
+  --mdpeek-path-fg: #9198a1;
+  --mdpeek-path-bg: #151b23;
+  --mdpeek-path-border: #3d444d;
 }
 
 html,
@@ -28,6 +34,63 @@ body {
   margin: 0;
   padding: 0;
   background-color: var(--mdpeek-background);
+}
+
+html {
+  /* ページ内の見出しへ移ったとき、パスの帯に隠れないようにする */
+  scroll-padding-top: 29px;
+}
+
+/* 表示中の文書のパス。窓の一番上に留め、本文とは違う窓の部品として見せる */
+.mdpeek-path {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-sizing: border-box;
+  height: 29px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--mdpeek-path-border);
+  background-color: var(--mdpeek-path-bg);
+  color: var(--mdpeek-path-fg);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 28px;
+}
+
+/* 収まらないときは、ファイル名の側を残して左側を省略する */
+.mdpeek-path-track {
+  overflow: hidden;
+  direction: rtl;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mdpeek-path-text {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ホバーしている間だけ、両端で少し止まりながら往復させる */
+.mdpeek-path-track--scrolling {
+  direction: ltr;
+  text-overflow: clip;
+}
+
+.mdpeek-path-track--scrolling .mdpeek-path-text {
+  display: inline-block;
+  animation: mdpeek-path-scroll var(--mdpeek-path-duration) linear infinite alternate;
+}
+
+@keyframes mdpeek-path-scroll {
+  0%,
+  10% {
+    transform: translateX(0);
+  }
+  90%,
+  100% {
+    transform: translateX(var(--mdpeek-path-distance));
+  }
 }
 
 .markdown-body {

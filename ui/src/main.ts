@@ -9,6 +9,7 @@ import { handleLink } from "./links";
 import { renderMath } from "./math";
 import { initHistoryButtons, initSwipeGestures } from "./navigation";
 import { flash, setProblem } from "./notice";
+import { initPathBar, showPath, topInset } from "./pathbar";
 import { buildTable, findBlock, type Block } from "./sourcepos";
 import { cycle, onThemeChange, start as startTheme } from "./theme";
 
@@ -68,9 +69,10 @@ function rebuildTable(): void {
 }
 
 function capture(): Anchor | null {
+  const inset = topInset();
   for (const block of table) {
     const rect = block.element.getBoundingClientRect();
-    if (rect.bottom > 0) {
+    if (rect.bottom > inset) {
       return { line: block.startLine, offset: rect.top };
     }
   }
@@ -92,12 +94,14 @@ function followCursor(line: number): void {
   if (block === null) {
     return;
   }
+  // パスの帯に隠れた部分は、見えていないものとして扱う
+  const inset = topInset();
   const rect = block.element.getBoundingClientRect();
-  const visible = rect.bottom > 0 && rect.top < window.innerHeight;
+  const visible = rect.bottom > inset && rect.top < window.innerHeight;
   if (visible) {
     return;
   }
-  const top = window.scrollY + rect.top - window.innerHeight / 3;
+  const top = window.scrollY + rect.top - (inset + (window.innerHeight - inset) / 3);
   window.scrollTo({ top, behavior: "instant" });
 }
 
@@ -174,6 +178,7 @@ function render(doc: Document | null): void {
   }
   shownGen = doc.gen;
   shownVersion = doc.version;
+  showPath(doc.path);
   const current = isCurrent(doc.version);
   rendering = true;
 
@@ -313,6 +318,8 @@ body.addEventListener("click", (event) => {
   }
   void invoke("jump", { gen: shownGen, version: shownVersion, line: block.startLine });
 });
+
+initPathBar();
 
 updateHistoryButtons = initHistoryButtons(
   () => void navigateHistory("go_back"),
