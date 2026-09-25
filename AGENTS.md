@@ -21,6 +21,7 @@ mdpeek/
 ├── .github/workflows/ # リリース用のビルド
 ├── src-tauri/        # Rust
 ├── ui/               # TypeScript + Vite
+├── scripts/          # THIRD_PARTY_NOTICES.md の生成
 ├── lua/mdpeek/       # Neovimプラグイン（リポジトリのルートをプラグインとして読み込めるようにする）
 ├── AGENTS.md
 ├── LICENSE           # MIT
