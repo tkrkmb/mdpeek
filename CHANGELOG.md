@@ -9,6 +9,8 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 
 ## [Unreleased]
 
+## [v0.9.0] - 2026-09-25
+
 ### Changed
 
 - Renamed from MdPeek to MdSight, because other tools already use the name `mdpeek`. The repository, executable, archives, Neovim module and commands all use the new name. To upgrade, install again with the README steps, change your config to `require("mdsight").setup({ bin = ... })` with the new executable path, and use `:MdSight` / `:MdSightClose`. Delete the old `~/.local/share/nvim/site/pack/mdpeek`. The theme chosen with `T` resets to system once.
