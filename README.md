@@ -1,197 +1,122 @@
 # MdPeek
 
-Markdownを、GitHub風のスタイルで別ウィンドウに表示します。Neovimで編集中のバッファをプレビューする使い方のほか、`mdpeek ファイル名`で単体でも起動できます。ファイルを保存しなくても、変更がすぐに反映されます。
-
-## 機能
-
-- 本文の編集に応じた自動更新（スタンドアローンモードでは、ファイルへの外部からの保存に追従）
-- Mermaidによる図、KaTeXによる数式、画像の表示
-- ライトテーマとダークテーマの切り替え
-- Neovimのカーソル位置に連動したスクロール
-- 修飾キーを押しながらのクリックによる、Neovimの該当行への移動
-- 相対パスの`.md`／`.markdown`リンクをクリックしての文書間の移動と、戻る／進む（ボタン・キーボード・トラックパッドのスワイプ）
-
-## 必要なもの
-
-- macOS（Intel / Apple Silicon）、またはLinux（x86_64）
-- Neovim 0.10以上
-- Linuxのみ：WebKitGTK 4.1（Fedoraでは`sudo dnf install webkit2gtk4.1`）
+Neovimで編集中のMarkdownを、保存しなくてもGitHub風の表示で別ウィンドウにプレビューします。カーソル位置に追従してスクロールし、プレビュー側のクリックでNeovimの該当行へ移動できます。`mdpeek ファイル名`で、Neovimなしの読み取り専用ビューアとしても使えます。
 
 ## インストール
 
-実行ファイルとLuaプラグインは、1つのアーカイブにまとめて配布しています。これをNeovimのパッケージ用ディレクトリ（`pack/*/start/`）に展開すると、プラグインは起動時に自動で読み込まれます。プラグインマネージャーは不要です。
+macOS（Intel / Apple Silicon）とLinux（x86_64）、Neovim 0.10以上に対応しています。LinuxではWebKitGTK 4.1が必要です（Fedoraなら`sudo dnf install webkit2gtk4.1`）。
 
-以下のコマンドは、最新の版を取得します。
-
-### 1. アーカイブを展開する
-
-macOS：
+実行ファイルとプラグインを、Neovimのパッケージ用ディレクトリに展開します。プラグインマネージャーは要りません。コマンドは常に最新の版を取得します。
 
 ```sh
 DIR=~/.local/share/nvim/site/pack/mdpeek/start/mdpeek
 mkdir -p "$DIR"
-curl -fL "https://github.com/tkrkmb/mdpeek/releases/latest/download/mdpeek-universal-macos.tar.gz" \
+# macOS
+curl -fL https://github.com/tkrkmb/mdpeek/releases/latest/download/mdpeek-universal-macos.tar.gz \
+  | tar -xz --strip-components=1 -C "$DIR"
+# Linux
+curl -fL https://github.com/tkrkmb/mdpeek/releases/latest/download/mdpeek-x86_64-linux.tar.gz \
   | tar -xz --strip-components=1 -C "$DIR"
 ```
 
-Linux：
-
-```sh
-DIR=~/.local/share/nvim/site/pack/mdpeek/start/mdpeek
-mkdir -p "$DIR"
-curl -fL "https://github.com/tkrkmb/mdpeek/releases/latest/download/mdpeek-x86_64-linux.tar.gz" \
-  | tar -xz --strip-components=1 -C "$DIR"
-```
-
-### 2. Neovimの設定に追記する
-
-`~/.config/nvim/init.lua`に、次の1行を追記します。
+`~/.config/nvim/init.lua`に次の1行を足します（`init.vim`なら先頭に`lua `を付けます）。
 
 ```lua
 require("mdpeek").setup({ bin = vim.fn.stdpath("data") .. "/site/pack/mdpeek/start/mdpeek/mdpeek" })
 ```
 
-### 3. 確認する
+Markdownファイルを開いて`:MdPeek`を実行し、別ウィンドウに本文が出れば完了です。
 
-Markdownファイルを開いて`:MdPeek`を実行します。別ウィンドウに本文が表示されれば完了です。
+データディレクトリを変えている場合は、`~/.local/share/nvim`を`:lua print(vim.fn.stdpath("data"))`の結果に置き換えてください。macOSでブラウザからダウンロードした場合は、署名していないため起動を拒まれることがあります。そのときは`xattr -dr com.apple.quarantine ~/.local/share/nvim/site/pack/mdpeek/start/mdpeek/mdpeek`を実行してください。
 
-### 更新と削除
+### 更新・削除
 
-- 確認：`~/.local/share/nvim/site/pack/mdpeek/start/mdpeek/mdpeek --version`で、入っている版を表示します。
-- 更新：手順1のコマンドをもう一度実行すると、最新の版に置き換わります。変更点は[CHANGELOG.md](CHANGELOG.md)にあります。
-- 特定の版を使う：[Releases](https://github.com/tkrkmb/mdpeek/releases)で版を選び、手順1のURLの`latest/download`を`download/<版>`に置き換えます。
-- 削除：`~/.local/share/nvim/site/pack/mdpeek`を削除し、手順2の1行を消します。
-
-### 補足
-
-**データディレクトリを変更している場合**：`:lua print(vim.fn.stdpath("data"))`で表示されるディレクトリを、手順1の`~/.local/share/nvim`の代わりに使ってください。
-
-**init.vimを使っている場合**：手順2では、`init.vim`に次の1行を追記します。
-
-```vim
-lua require("mdpeek").setup({ bin = vim.fn.stdpath("data") .. "/site/pack/mdpeek/start/mdpeek/mdpeek" })
-```
-
-**macOSでブラウザからダウンロードした場合**：署名と公証をしていないため、隔離属性が付いて起動できないことがあります。配布元を確認したうえで、次を実行してください（`curl`で取得した場合は不要です）。
-
-```sh
-xattr -dr com.apple.quarantine ~/.local/share/nvim/site/pack/mdpeek/start/mdpeek/mdpeek
-```
+| やること | 方法 |
+| --- | --- |
+| 入っている版を見る | `~/.local/share/nvim/site/pack/mdpeek/start/mdpeek/mdpeek --version` |
+| 最新の版に更新する | 展開のコマンドをもう一度実行する（変更点は[CHANGELOG.md](CHANGELOG.md)） |
+| 特定の版を入れる | URLの`latest/download`を`download/<版>`に置き換える（版は[Releases](https://github.com/tkrkmb/mdpeek/releases)） |
+| 削除する | `~/.local/share/nvim/site/pack/mdpeek`を消し、`init.lua`の1行を消す |
 
 ## 使い方
 
-### Neovimのコマンド
+### Neovimから
 
 | コマンド | 動作 |
 | --- | --- |
-| `:MdPeek` | 現在のバッファをプレビューします。プレビューが開いていれば、表示するバッファを切り替えます。 |
-| `:MdPeekClose` | プレビューを閉じます。 |
+| `:MdPeek` | 現在のバッファをプレビューする。開いていれば表示するバッファを切り替え、隠れていたウィンドウを前に出す（入力はNeovimに残る） |
+| `:MdPeekClose` | プレビューを閉じる |
 
-`:MdPeek`の対象にできるのは、`filetype`が`markdown`で、ファイル名が付いている通常のバッファだけです。
+対象にできるのは、`filetype`が`markdown`でファイル名のある通常のバッファだけです。入力が約200ms止まると表示が更新されます。カーソルのあるブロックが画面外に出たときだけ、そのブロックが画面の上から1/3に来るようにスクロールします。ウィンドウのタイトルは`MdPeek — Linked to Neovim`です。
 
-### スタンドアローンモード
-
-Neovimを介さず、ファイルを直接指定して起動できます。
+### ファイルを直接開く
 
 ```sh
 mdpeek path/to/note.md
 ```
 
-インストール手順どおりに導入した場合、実行ファイルは`~/.local/share/nvim/site/pack/mdpeek/start/mdpeek/mdpeek`にあります。そのディレクトリをPATHに加えれば、`mdpeek`だけで呼び出せます。
+ウィンドウはバックグラウンドで開き、コマンドはすぐに終わります。実行ファイルは`~/.local/share/nvim/site/pack/mdpeek/start/mdpeek/mdpeek`にあるので、PATHに加えるかエイリアスを作ってください。
 
-- 指定したファイルを外部のエディタで保存すると、表示が自動で更新されます。
-- 存在しないファイルや、拡張子が`md`／`markdown`でないファイルを指定するとエラーで終了します。
-- ウィンドウはバックグラウンドで開き、コマンドはすぐに終わります。ターミナルを閉じてもウィンドウは残ります。
-- 同じファイルを表示しているウィンドウ（タイトルが`MdPeek — Read Only`のもの）が既にあれば、新しいウィンドウは開かず、そのウィンドウを前面に出します。Neovimと連携しているウィンドウ（`MdPeek — Linked to Neovim`）は対象になりません。
-- 起動した後に、ファイルを読み直せない・監視できないといった問題が起きたときは、ウィンドウの左下に表示します。読み直せるようになると消えます。
-- `mdpeek --foreground note.md`のように`--foreground`を付けると、ターミナルを占有したまま動きます。上の問題は、ターミナルにも表示されます。
+- ファイルを保存し直すと、表示が自動で更新されます。
+- 同じファイルを表示している読み取り専用のウィンドウ（タイトルが`MdPeek — Read Only`）があれば、新しく開かずにそれを前面に出します。Neovimのプレビューは対象外です。
+- `--foreground`を付けると、ターミナルを占有したまま動き、エラーもターミナルに出ます。
 
 ### プレビューでの操作
 
 | 操作 | 動作 |
 | --- | --- |
-| `T` | テーマを system → light → dark の順に切り替えます。 |
-| Cmd+クリック（macOS）<br>Ctrl+クリック（Linux） | Neovimのカーソルを、クリックしたブロックの開始行へ移動します。 |
-| リンクのクリック | `#`で始まるリンクはページ内へ移動します。`http:` / `https:`のリンクは既定のブラウザで開きます。相対パスの`.md`／`.markdown`リンク（末尾に`#見出し`があってもよい）は、そのファイルを新しい文書として開きます。 |
-| 戻る／進むボタン（右下）<br>Cmd+[ / Cmd+]（macOS）<br>Alt+← / Alt+→（Linux）<br>トラックパッドの2本指横スワイプ | リンクで開いた文書の履歴を辿ります。辿れない方は無効になります。 |
+| `T` | テーマを system → light → dark の順に切り替える |
+| Cmd+クリック（macOS）、Ctrl+クリック（Linux） | Neovimのカーソルを、クリックしたブロックの開始行へ移す |
+| 相対パスの`.md`／`.markdown`リンクをクリック | そのファイルを開く（`#見出し`があればそこへ移動） |
+| `http:`／`https:`のリンクをクリック | 既定のブラウザで開く |
+| 左上の‹ ›、Cmd+[ / Cmd+]（macOS）、Alt+← / Alt+→（Linux）、2本指の横スワイプ | リンクで開いた文書を戻る／進む |
 
-Neovimに接続した状態で相対リンクを開くと、Neovim側の対象ウィンドウも同じファイルに切り替わります。対象バッファに保存していない変更があるなど、Neovim側で開けなかった場合は、その旨が通知され、プレビューも元のままになります。リンク先のファイルが無いなど、リンクを開けなかったときは、その理由をウィンドウの左下に数秒だけ表示します。`:MdPeek`で対象を切り替えると、この履歴は空になります。
+Neovimのプレビューでリンクを辿ると、Neovim側の対象も同じファイルに切り替わります。保存していない変更があるなどでNeovimが開けなかったときは、通知が出てプレビューも元のままです。`:MdPeek`で対象を切り替えると、戻る／進むの履歴は空になります。
 
-### 自動で行われること
-
-- 入力が約200ms止まると、表示を更新します（保存は不要です）。
-- Neovimのカーソルに追従してスクロールします。カーソルのあるブロックが画面外にあるときだけ、そのブロックを画面の上から1/3の位置に表示します。
+ウィンドウの上端に、表示中のファイルのパスが出ます。リンクを開けなかったときや、ファイルを読み直せないときは、その理由が下端に出ます。
 
 ## 既知の制限
 
-- ウィンドウは1枚だけで、同時に表示できるバッファ／ファイルも1つだけです。
 - 生HTMLは描画しません。
 - 画像は、相対パスと`https:`のものだけを表示します。拡張子は png / jpg / jpeg / gif / webp / svg に限ります。
-- スクロール同期はブロック単位です。長い段落や表の中では、位置がおおよそになります。
-- リンクを辿って戻ったときは、文書の先頭（または`#見出し`）に移動します。離れた時点の読んでいた位置は覚えていません。
-- Neovimで`gf`や`Ctrl-O`など、`:MdPeek`以外の方法で別のファイルへ移動しても、プレビューは自動で追従しません（`:MdPeek`をやり直してください）。
-- LinuxのWayland環境では、`:MdPeek`で対象を切り替えても、他のウィンドウに隠れたプレビューが前に出てこないことがあります（フォーカスを移さずに前に出すことを、OSが許さないため）。
+- スクロール同期はブロック単位です。長い段落や表の中では位置がおおよそになります。
+- リンクを辿って戻ると、文書の先頭（または`#見出し`）に移動します。読んでいた位置は覚えていません。
+- Neovimで`gf`や`Ctrl-O`で別のファイルへ移っても、プレビューは追従しません。`:MdPeek`をやり直してください。
+- LinuxのWaylandでは、`:MdPeek`で隠れたプレビューが前に出ないことがあります。フォーカスを移さずにウィンドウを前に出すことを、OSが許さないためです。
 
 ## ソースコードからのビルド
 
-### 準備
+RustとTauri CLI（`cargo install tauri-cli --locked --version "^2.0"`）、Node.jsが必要です。macOSではXcodeコマンドラインツールも要ります。Linuxで必要な開発パッケージは、Fedoraなら次のとおりです。ほかの環境は[Tauriの前提条件](https://v2.tauri.app/start/prerequisites/)を参照してください。
 
-- macOS：Xcodeコマンドラインツール
-- Linux：Node.jsと、WebKitGTKなどの開発パッケージ。Fedoraの例：
+```sh
+sudo dnf install nodejs24 nodejs24-npm webkit2gtk4.1-devel gtk3-devel libsoup3-devel \
+  librsvg2-devel openssl-devel gcc gcc-c++ make file
+```
 
-  ```sh
-  sudo dnf install nodejs24 nodejs24-npm
-  sudo dnf install webkit2gtk4.1-devel gtk3-devel libsoup3-devel \
-    librsvg2-devel openssl-devel gcc gcc-c++ make file
-  ```
-
-- 共通：RustとTauri CLI
-
-  ```sh
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-  source "$HOME/.cargo/env"
-  cargo install tauri-cli --locked --version "^2.0"
-  ```
-
-その他の環境については、[Tauriの前提条件](https://v2.tauri.app/start/prerequisites/)を参照してください。
-
-### ビルド
+ビルドして、配布版と同じ場所に置きます。`setup`の書き方も同じです。
 
 ```sh
 git clone https://github.com/tkrkmb/mdpeek.git
 cd mdpeek
 (cd ui && npm install)
-cargo tauri build --no-bundle
+cargo tauri build --no-bundle   # フロントエンドも一緒にビルドされる
 DIR=~/.local/share/nvim/site/pack/mdpeek/start/mdpeek
 mkdir -p "$DIR"
 cp -R lua src-tauri/target/release/mdpeek "$DIR/"
 ```
 
-フロントエンドは、`cargo tauri build`の中で自動的にビルドされます。配置先は配布版と同じなので、`setup`の書き方も同じです。
+テストは`(cd src-tauri && cargo test)`と`(cd ui && npm test)`です。`v`で始まるタグをpushすると、GitHub ActionsがLinuxとmacOSの版をビルドしてReleaseに添付します。
 
-## 開発
-
-テスト：
-
-```sh
-(cd src-tauri && cargo test)   # Rust
-(cd ui && npm test)            # フロントエンド（vitest）
-```
-
-リリース：`v`で始まるタグをpushすると、GitHub ActionsがLinuxとmacOSの実行ファイルをビルドし、GitHubのReleaseに添付します。
-
-同梱したライブラリのライセンス表示（`THIRD_PARTY_NOTICES.md`）は、リリースのたびにCIが生成します。手元で作るときは、[cargo-about](https://github.com/EmbarkStudios/cargo-about)を入れてから、フロントエンドをビルドして生成します。
+同梱ライブラリのライセンス表示（`THIRD_PARTY_NOTICES.md`）はCIが生成します。手元で作るときは次のとおりです。
 
 ```sh
 cargo install cargo-about --locked --version 0.9.2 --features cli
 (cd ui && npm run build)
-scripts/third-party-notices.sh   # リポジトリのルートに THIRD_PARTY_NOTICES.md ができる
+scripts/third-party-notices.sh
 ```
 
 ## ライセンス
 
-MdPeek自体は[MIT License](LICENSE)です。
+MdPeekは[MIT License](LICENSE)です。実行ファイルに含まれるTauri、comrak、mermaid、KaTeXなどのライセンスは、リリースのアーカイブ内の`THIRD_PARTY_NOTICES.md`にあります。
 
-実行ファイルには、Tauri、comrak、mermaid、KaTeX、github-markdown-cssなどのライブラリが含まれています。それぞれのライセンスは、リリースのアーカイブに入っている`THIRD_PARTY_NOTICES.md`にまとめています。
-
-このうち、Neovimとの通信に使っている[nvim-rs](https://github.com/KillTheMule/nvim-rs)はLGPL-3.0です。MdPeekのソースコードはすべてこのリポジトリで公開しているので、nvim-rsを差し替えて実行ファイルを作り直すことができます（手順は「ソースコードからのビルド」を参照）。
+Neovimとの通信に使う[nvim-rs](https://github.com/KillTheMule/nvim-rs)はLGPL-3.0です。ソースコードをすべて公開しているので、nvim-rsを差し替えて作り直せます（上の「ソースコードからのビルド」）。
