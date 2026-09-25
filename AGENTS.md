@@ -237,8 +237,9 @@ DO NOT
 
 DO
 
-- ワークフローは `.github/workflows/release.yml` の1本だけにする
-- `v` で始まるタグを押したときに動かす。手動でも実行できるようにする
+- ワークフローは、リリース用の `.github/workflows/release.yml` と、テスト用の `.github/workflows/test.yml` の2本だけにする
+- テスト用：`main` への push と、`main` に向けたPRで動かす。Linux（Ubuntu、x86_64）で、フロントエンドのテスト（`npm test`）と、フロントエンドをビルドしてからRustのテスト（`cargo test`）を実行する。どれかが失敗したら、ジョブを失敗させる
+- リリース用：`v` で始まるタグを押したときに動かす。手動でも実行できるようにする
 - Linux（Ubuntu、x86_64）とmacOS（IntelとApple Siliconの両方で動く1つの実行ファイル）を作る
 - どちらも、フロントエンドをビルドしてから `cargo build --release` を実行する
 - できた実行ファイルを `tar.gz` にまとめ、タグから作るGitHubのReleaseに添付する
@@ -390,3 +391,10 @@ DO NOT
   - `T` キーで light／dark を選ぶと、アイコンもそれに合わせて切り替わる
   - アプリのテーマが system なら、起動した直後にアイコンがちらつかない
   - `cargo tauri build --no-bundle` で作った実行ファイルでも、macOS の Dock にアイコンが出る
+
+### 段階14：テストのCI
+
+- 実装するもの：`main` への push とPRでテストを実行する `.github/workflows/test.yml`
+- 完了の条件
+  - `main` に push すると、テストのワークフローが動き、成功する
+  - テストが1件でも失敗すると、ワークフローが失敗する
