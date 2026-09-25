@@ -43,7 +43,7 @@ export function showPath(path: string): void {
   });
 }
 
-/** 帯を用意する。収まらないパスは、ホバーしている間だけ横に流す */
+/** 帯を用意する。収まらないパスは、パスの上にホバーしている間だけ横に流す */
 export function initPathBar(): void {
   const element = document.querySelector<HTMLElement>(".mdpeek-path")!;
   const track = element.querySelector<HTMLElement>(".mdpeek-path-track")!;
@@ -52,25 +52,25 @@ export function initPathBar(): void {
   bar = element;
   home = homeDir().catch(() => null);
 
-  element.addEventListener("mouseenter", () => {
+  track.addEventListener("mouseenter", () => {
     const overflow = text.getBoundingClientRect().width - track.clientWidth;
     if (overflow <= 0) {
-      element.removeAttribute("title");
+      track.removeAttribute("title");
       return;
     }
     if (reducedMotion.matches) {
       // 動かさず、ツールチップで全体を見せる
-      element.title = text.textContent ?? "";
+      track.title = text.textContent ?? "";
       return;
     }
-    element.removeAttribute("title");
+    track.removeAttribute("title");
     track.style.setProperty("--mdpeek-path-distance", `${-overflow}px`);
     // 両端で止まる時間（全体の2割）を含めた長さにする
     track.style.setProperty("--mdpeek-path-duration", `${(overflow / SPEED / 0.8).toFixed(2)}s`);
     track.classList.add("mdpeek-path-track--scrolling");
   });
 
-  element.addEventListener("mouseleave", () => {
+  track.addEventListener("mouseleave", () => {
     track.classList.remove("mdpeek-path-track--scrolling");
   });
 }

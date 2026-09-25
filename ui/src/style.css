@@ -4,6 +4,8 @@
   --mdpeek-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial,
     sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --mdpeek-background: #ffffff;
+  /* パスの帯の高さ（下の境界線を含む）。見出しへ移るときの余白にも使う */
+  --mdpeek-path-height: 35px;
   --mdpeek-nav-fg: #1f2328;
   --mdpeek-nav-bg: rgba(31, 35, 40, 0.06);
   --mdpeek-nav-bg-hover: rgba(31, 35, 40, 0.12);
@@ -38,27 +40,34 @@ body {
 
 html {
   /* ページ内の見出しへ移ったとき、パスの帯に隠れないようにする */
-  scroll-padding-top: 29px;
+  scroll-padding-top: var(--mdpeek-path-height);
 }
 
-/* 表示中の文書のパス。窓の一番上に留め、本文とは違う窓の部品として見せる */
+/* 表示中の文書のパス。窓の一番上に留め、本文とは違う窓の部品として見せる。
+   ブラウザのアドレスバーと同じく、左端に戻る／進む、その右にパスを並べる */
 .mdpeek-path {
   position: sticky;
   top: 0;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   box-sizing: border-box;
-  height: 29px;
-  padding: 0 32px;
+  height: var(--mdpeek-path-height);
+  padding: 0 32px 0 8px;
   border-bottom: 1px solid var(--mdpeek-path-border);
   background-color: var(--mdpeek-path-bg);
   color: var(--mdpeek-path-fg);
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-  line-height: 28px;
+  /* ウィンドウのタイトルと同じ大きさにする */
+  font-size: 13px;
+  line-height: 20px;
 }
 
 /* 収まらないときは、ファイル名の側を残して左側を省略する */
 .mdpeek-path-track {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   direction: rtl;
   text-align: left;
@@ -101,27 +110,23 @@ html {
   background-color: var(--mdpeek-background);
 }
 
-/* 戻る／進む。本文の右下に常時重ねる。
-   右側は、重なって表示されるスクロールバー（macOSで最大16px程度）を避けて空ける */
+/* 戻る／進む。パスの帯の左端に、帯の高さに収めて置く */
 .mdpeek-nav {
-  position: fixed;
-  bottom: 12px;
-  right: 28px;
-  z-index: 10;
   display: flex;
-  gap: 4px;
+  flex: none;
+  gap: 2px;
 }
 
 .mdpeek-nav button {
   font-family: var(--mdpeek-font);
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: none;
   border-radius: 6px;
   background: var(--mdpeek-nav-bg);
   color: var(--mdpeek-nav-fg);
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
   cursor: pointer;
 }
@@ -135,17 +140,16 @@ html {
   background: var(--mdpeek-nav-bg-hover);
 }
 
-/* 知らせの帯。本文の左下に重ね、右下の戻る／進むボタンとは重ならないようにする */
+/* 知らせの帯。窓の下端に、横幅いっぱいに重ねる */
 .mdpeek-notice {
   position: fixed;
-  bottom: 12px;
-  left: 12px;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 10;
   box-sizing: border-box;
-  max-width: calc(100% - 120px);
-  padding: 6px 10px;
-  border: 1px solid var(--mdpeek-notice-border);
-  border-radius: 6px;
+  padding: 6px 32px;
+  border-top: 1px solid var(--mdpeek-notice-border);
   background: var(--mdpeek-notice-bg);
   color: var(--mdpeek-notice-fg);
   font-family: var(--mdpeek-font);
