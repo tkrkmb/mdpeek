@@ -10,6 +10,11 @@ MdPeekの利用者から見える変更を、版ごとに記録します。
 ### 追加
 
 - MIT Licenseで公開した（`LICENSE`）。リリースのアーカイブに、同梱したライブラリのライセンス表示（`THIRD_PARTY_NOTICES.md`）を入れるようにした。
+- `mdpeek --version`で、版を表示できるようにした。
+
+### 変更
+
+- Releaseに添付するアーカイブの名前から版を外した（`mdpeek-universal-macos.tar.gz`、`mdpeek-x86_64-linux.tar.gz`）。READMEの導入手順は、常に最新の版を取得する。
 
 ## [v0.6.0] - 2026-09-25
 
