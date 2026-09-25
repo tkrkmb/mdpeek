@@ -151,6 +151,18 @@ function matchPendingNavigation(gen: number, version: number): PendingNavigation
   return navigation;
 }
 
+/**
+ * 移動先の文書は、コマンドの結果より先に届いていることがある。
+ * 届いていればすぐに動き、まだなら届いたときに動けるように覚えておく
+ */
+function navigateTo(target: NavigationTarget, fragment: string | null): void {
+  if (target.gen === shownGen) {
+    goToFragmentOrTop(fragment);
+  } else if (target.gen > shownGen) {
+    navigateTo(target, fragment);
+  }
+}
+
 /** #見出し があればその要素へ、なければ先頭へ移動する */
 function goToFragmentOrTop(fragment: string | null): void {
   const target = fragment !== null ? document.getElementById(fragment) : null;
@@ -171,7 +183,8 @@ function render(doc: Document | null): void {
   }
   // リンクや履歴での移動先なら、読んでいた位置ではなく先頭／見出しへ動く
   const navigation = matchPendingNavigation(doc.gen, doc.version);
-  if (doc.gen !== shownGen) {
+  const switched = doc.gen !== shownGen;
+  if (switched) {
     // 対象世代が変わった(自分の操作でも、:MdPeekによる切り替えでも)ので、
     // 戻る／進むボタンの有効/無効を最新の状態に合わせ直す
     void refreshHistoryAvailability();
@@ -182,8 +195,9 @@ function render(doc: Document | null): void {
   const current = isCurrent(doc.version);
   rendering = true;
 
-  // 読んでいた位置を、差し替えの前に記録して、後で戻す
-  const anchor = navigation === null ? capture() : null;
+  // 読んでいた位置を、差し替えの前に記録して、後で戻す。
+  // 別の文書に替わったときは、前の文書の位置は意味を持たないので記録しない
+  const anchor = navigation === null && !switched ? capture() : null;
   body.innerHTML = doc.html;
   renderMath(body);
   rebuildTable();
@@ -202,6 +216,8 @@ function render(doc: Document | null): void {
 
   if (navigation !== null) {
     goToFragmentOrTop(navigation.fragment);
+  } else if (switched) {
+    window.scrollTo({ top: 0 });
   } else if (anchor !== null) {
     restore(anchor);
   }
@@ -266,7 +282,7 @@ async function followLink(href: string): Promise<void> {
   const path = hashIndex === -1 ? href : href.slice(0, hashIndex);
   try {
     const target = await invoke<NavigationTarget>("open_link", { href: path, version: shownVersion });
-    pendingNavigation = { gen: target.gen, version: target.version, fragment };
+    navigateTo(target, fragment);
   } catch (error) {
     flash(`Cannot open the link: ${path} (${String(error)})`);
   } finally {
@@ -283,7 +299,7 @@ async function navigateHistory(command: "go_back" | "go_forward"): Promise<void>
   }
   try {
     const target = await invoke<NavigationTarget>(command);
-    pendingNavigation = { gen: target.gen, version: target.version, fragment: null };
+    navigateTo(target, null);
   } catch (error) {
     flash(`${back ? "Cannot go back" : "Cannot go forward"} (${String(error)})`);
   } finally {
