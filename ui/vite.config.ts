@@ -6,6 +6,8 @@ export default defineConfig({
   build: {
     target: "es2022",
     emptyOutDir: true,
+    // バンドルに含まれたnpmパッケージのライセンス（THIRD_PARTY_NOTICES.md の元）
+    license: true,
   },
   clearScreen: false,
   test: {

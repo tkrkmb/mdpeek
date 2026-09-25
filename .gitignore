@@ -3,6 +3,8 @@
 /src-tauri/gen/
 /ui/dist/
 /ui/node_modules/
+# CIのビルドのたびに生成する（古くならないようにコミットしない）
+/THIRD_PARTY_NOTICES.md
 
 # 秘密情報。誤って追加しても、コミットに入らないようにする
 .env
