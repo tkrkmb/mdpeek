@@ -57,13 +57,13 @@ async fn render_queue(app: AppHandle, mut queue: UnboundedReceiver<Value>) {
         if let Some(document) = document_from(&payload) {
             // 対象世代が変わっていたら、自分(open_link/go_back/go_forward)による
             // ものかどうかを確かめ、そうでなければ(:MdPeekによる切り替えなど)
-            // リンクの履歴を空にする
+            // リンクの履歴を空にして、隠れていれば窓を前に出す
             let retargeted = app
                 .state::<Documents>()
                 .current()
                 .is_some_and(|current| current.generation != document.generation);
-            if retargeted {
-                app.state::<History>().reset_if_unexpected(document.generation);
+            if retargeted && app.state::<History>().reset_if_unexpected(document.generation) {
+                crate::raise::show_without_focus(&app);
             }
             crate::publish(&app, document);
         }
