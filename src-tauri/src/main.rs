@@ -1,5 +1,6 @@
 mod image;
 mod nvim;
+mod raise;
 mod render;
 mod standalone;
 
@@ -106,13 +107,16 @@ struct HistoryState {
 
 impl History {
     /// `:MdPeek` など、自分の操作以外で対象世代が変わったら、履歴を空にする。
-    pub fn reset_if_unexpected(&self, generation: u64) {
+    /// 自分の操作以外だったら true を返す。
+    pub fn reset_if_unexpected(&self, generation: u64) -> bool {
         let mut state = self.0.lock().expect("history lock");
         if state.expected_generation == Some(generation) {
             state.expected_generation = None;
+            false
         } else {
             state.back.clear();
             state.forward.clear();
+            true
         }
     }
 }
@@ -393,6 +397,7 @@ async fn open_path(
             let document = standalone::open(target, current.generation + 1, current.version + 1)?;
             crate::publish(app, document.clone());
             standalone::start_watching(app, target.to_path_buf());
+            raise::listen(app, Path::new(&document.path));
             Ok(NavigationTarget::from(&document))
         }
         RuntimeMode::Nvim => {
@@ -449,6 +454,15 @@ fn main() {
     let launch = match mode {
         Mode::Nvim(args) => Launch::Nvim(args),
         Mode::File { path, foreground } => match standalone::load(&path) {
+            // 同じファイルを開いている窓があれば、そちらを前面に出して終わる
+            Ok(document) if raise::request(Path::new(&document.path)) => {
+                let name = Path::new(&document.path)
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| document.path.clone());
+                println!("MdPeek: 既に開いている窓を前面に出しました（{name}）");
+                std::process::exit(0);
+            }
             Ok(document) if foreground => Launch::File(document),
             Ok(document) => {
                 // 検証できたので、端末から切り離した子プロセスに任せて、すぐに戻る
@@ -479,6 +493,7 @@ fn main() {
         .manage(History::default())
         .manage(Problem::default())
         .manage(standalone::Watching::default())
+        .manage(raise::Listening::default())
         .manage(runtime_mode)
         .invoke_handler(tauri::generate_handler![
             current_document,
@@ -512,13 +527,19 @@ fn main() {
                     // （相対パスで起動すると、親ディレクトリが空になり監視できないため）
                     let watched = PathBuf::from(&document.path);
                     crate::publish(&handle, document);
-                    standalone::start_watching(&handle, watched);
+                    standalone::start_watching(&handle, watched.clone());
+                    raise::listen(&handle, &watched);
                 }
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("failed to run mdpeek");
+        .build(tauri::generate_context!())
+        .expect("failed to build mdpeek")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                raise::stop(app);
+            }
+        });
 }
 
 #[cfg(test)]

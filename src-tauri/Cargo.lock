@@ -2339,8 +2339,11 @@ version = "0.5.0"
 dependencies = [
  "async-trait",
  "comrak",
+ "gtk",
+ "libc",
  "notify",
  "nvim-rs",
+ "objc2-app-kit",
  "percent-encoding",
  "serde",
  "tauri",
