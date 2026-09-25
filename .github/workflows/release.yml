@@ -40,12 +40,18 @@ jobs:
         working-directory: src-tauri
         run: cargo build --release
 
+      # 同梱したライブラリのライセンス表示を作る（npm側は、フロントエンドのビルドで書き出される）
+      - name: Write the third-party notices
+        run: |
+          cargo install cargo-about --locked --version 0.9.2 --features cli
+          scripts/third-party-notices.sh
+
       - name: Pack the executable
         id: pack
         run: |
           name="mdpeek-${GITHUB_REF_NAME}-x86_64-linux"
           mkdir -p "dist/${name}"
-          cp src-tauri/target/release/mdpeek README.md "dist/${name}/"
+          cp src-tauri/target/release/mdpeek README.md LICENSE THIRD_PARTY_NOTICES.md "dist/${name}/"
           cp -R lua "dist/${name}/"
           tar -czf "dist/${name}.tar.gz" -C dist "${name}"
           echo "archive=dist/${name}.tar.gz" >> "$GITHUB_OUTPUT"
@@ -104,6 +110,11 @@ jobs:
           cargo build --release --target aarch64-apple-darwin
           cargo build --release --target x86_64-apple-darwin
 
+      - name: Write the third-party notices
+        run: |
+          cargo install cargo-about --locked --version 0.9.2 --features cli
+          scripts/third-party-notices.sh
+
       # 2つの実行ファイルを、1つのユニバーサルバイナリにまとめる
       - name: Pack the executable
         id: pack
@@ -114,7 +125,7 @@ jobs:
             src-tauri/target/aarch64-apple-darwin/release/mdpeek \
             src-tauri/target/x86_64-apple-darwin/release/mdpeek
           lipo -info "dist/${name}/mdpeek"
-          cp README.md "dist/${name}/"
+          cp README.md LICENSE THIRD_PARTY_NOTICES.md "dist/${name}/"
           cp -R lua "dist/${name}/"
           tar -czf "dist/${name}.tar.gz" -C dist "${name}"
           echo "archive=dist/${name}.tar.gz" >> "$GITHUB_OUTPUT"
