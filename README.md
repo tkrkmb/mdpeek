@@ -21,14 +21,14 @@ Markdownを、GitHub風のスタイルで別ウィンドウに表示します。
 
 実行ファイルとLuaプラグインは、1つのアーカイブにまとめて配布しています。これをNeovimのパッケージ用ディレクトリ（`pack/*/start/`）に展開すると、プラグインは起動時に自動で読み込まれます。プラグインマネージャーは不要です。
 
-以下はv0.5.0の例です。別の版を使う場合は、[Releases](https://github.com/tkrkmb/mdpeek/releases)で版を選び、`VERSION`をその値にしてください。
+以下はv0.6.0の例です。別の版を使う場合は、[Releases](https://github.com/tkrkmb/mdpeek/releases)で版を選び、`VERSION`をその値にしてください。
 
 ### 1. アーカイブを展開する
 
 macOS：
 
 ```sh
-VERSION=v0.5.0
+VERSION=v0.6.0
 DIR=~/.local/share/nvim/site/pack/mdpeek/start/mdpeek
 mkdir -p "$DIR"
 curl -fL "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-${VERSION}-universal-macos.tar.gz" \
@@ -38,7 +38,7 @@ curl -fL "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-$
 Linux：
 
 ```sh
-VERSION=v0.5.0
+VERSION=v0.6.0
 DIR=~/.local/share/nvim/site/pack/mdpeek/start/mdpeek
 mkdir -p "$DIR"
 curl -fL "https://github.com/tkrkmb/mdpeek/releases/download/${VERSION}/mdpeek-${VERSION}-x86_64-linux.tar.gz" \
