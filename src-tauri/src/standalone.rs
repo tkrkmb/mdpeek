@@ -152,7 +152,7 @@ fn reload(app: &AppHandle, path: &Path) {
             set_problem(
                 app,
                 Some(format!(
-                    "{} を読み直せません。最後に読めた内容を表示しています（{err}）",
+                    "Cannot reload {}. Showing the last content that could be read ({err})",
                     file_name(path)
                 )),
             );
@@ -170,7 +170,7 @@ pub fn start_watching(app: &AppHandle, path: PathBuf) {
             set_problem(
                 app,
                 Some(format!(
-                    "{name} を監視できません。保存しても表示は更新されません（{message}）"
+                    "Cannot watch {name}. Saving it will not update the view ({message})"
                 )),
             );
         }

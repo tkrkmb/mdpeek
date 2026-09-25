@@ -268,7 +268,7 @@ async function followLink(href: string): Promise<void> {
     const target = await invoke<NavigationTarget>("open_link", { href: path, version: shownVersion });
     pendingNavigation = { gen: target.gen, version: target.version, fragment };
   } catch (error) {
-    flash(`リンクを開けませんでした：${path}（${String(error)}）`);
+    flash(`Cannot open the link: ${path} (${String(error)})`);
   } finally {
     void refreshHistoryAvailability();
   }
@@ -285,7 +285,7 @@ async function navigateHistory(command: "go_back" | "go_forward"): Promise<void>
     const target = await invoke<NavigationTarget>(command);
     pendingNavigation = { gen: target.gen, version: target.version, fragment: null };
   } catch (error) {
-    flash(`${back ? "戻れません" : "進めません"}（${String(error)}）`);
+    flash(`${back ? "Cannot go back" : "Cannot go forward"} (${String(error)})`);
   } finally {
     void refreshHistoryAvailability();
   }

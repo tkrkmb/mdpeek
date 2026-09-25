@@ -460,7 +460,7 @@ fn main() {
                     .file_name()
                     .map(|name| name.to_string_lossy().into_owned())
                     .unwrap_or_else(|| document.path.clone());
-                println!("MdPeek: 既に開いている窓を前面に出しました（{name}）");
+                println!("MdPeek: brought the window already showing {name} to the front");
                 std::process::exit(0);
             }
             Ok(document) if foreground => Launch::File(document),
