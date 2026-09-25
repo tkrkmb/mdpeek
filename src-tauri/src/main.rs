@@ -1,3 +1,4 @@
+mod icon;
 mod image;
 mod nvim;
 mod raise;
@@ -274,6 +275,12 @@ fn app_mode(mode: tauri::State<'_, RuntimeMode>) -> &'static str {
     mode.as_str()
 }
 
+/// フロントエンドが適用したテーマ（ライト／ダーク）に、アプリのアイコンを合わせる。
+#[tauri::command]
+fn set_app_icon(app: AppHandle, appearance: icon::Appearance) {
+    icon::apply(&app, appearance);
+}
+
 /// フロントエンドが、戻る／進むボタンの有効/無効を決めるために使う。
 #[tauri::command]
 fn history_state(history: tauri::State<'_, History>) -> HistoryAvailability {
@@ -522,7 +529,8 @@ fn main() {
             current_problem,
             open_link,
             go_back,
-            go_forward
+            go_forward,
+            set_app_icon
         ])
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
@@ -552,10 +560,11 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("failed to build mdpeek")
-        .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
-                raise::stop(app);
-            }
+        .run(|app, event| match event {
+            // Tauriが開発ビルドで既定のアイコンを設定した後に届くので、ここで上書きする
+            tauri::RunEvent::Ready => icon::follow_os(app),
+            tauri::RunEvent::Exit => raise::stop(app),
+            _ => {}
         });
 }
 

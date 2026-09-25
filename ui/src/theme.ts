@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import lightCss from "github-markdown-css/github-markdown-light.css?inline";
 import darkCss from "github-markdown-css/github-markdown-dark.css?inline";
 
@@ -58,6 +59,8 @@ export function appearance(): Appearance {
 
 function apply(): void {
   document.documentElement.dataset.theme = appearance();
+  // アプリのアイコンも、実際に使っている色に合わせる
+  invoke("set_app_icon", { appearance: appearance() }).catch(() => {});
   for (const listener of listeners) {
     listener();
   }

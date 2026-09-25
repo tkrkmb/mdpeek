@@ -1,0 +1,31 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="dt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f3440"/><stop offset="1" stop-color="#161a22"/></linearGradient>
+    <linearGradient id="dr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".7"/><stop offset=".4" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#fff" stop-opacity=".35"/></linearGradient>
+    <linearGradient id="db" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4d8fe8"/><stop offset="1" stop-color="#2458b3"/></linearGradient>
+    <linearGradient id="dg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".5" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#fff" stop-opacity=".3"/></linearGradient>
+    <filter id="ds" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.5"/></filter>
+    <clipPath id="dc"><rect x="32" y="32" width="448" height="448" rx="100"/></clipPath>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="100" fill="url(#dt)"/>
+  <g clip-path="url(#dc)">
+    <line x1="32" y1="180" x2="480" y2="180" stroke="#3a404d" stroke-opacity="1" stroke-width="4"/><line x1="32" y1="252" x2="480" y2="252" stroke="#3a404d" stroke-opacity="1" stroke-width="4"/><line x1="32" y1="324" x2="480" y2="324" stroke="#3a404d" stroke-opacity="1" stroke-width="4"/><line x1="32" y1="396" x2="480" y2="396" stroke="#3a404d" stroke-opacity="1" stroke-width="4"/>
+    <path d="M105.28 116 L99.52 164 M124.48 116 L118.72 164 M90.88 131.36 H136 M88 148.64 H133.12" stroke="#5a9cff" stroke-width="10" stroke-linecap="round" fill="none"/>
+    <rect x="150" y="133" width="92" height="12" rx="6" fill="#8a92a0"/>
+    <rect x="88" y="211" width="160" height="10" rx="5" fill="#8a92a0"/>
+    <rect x="88" y="284" width="20" height="9" rx="4.5" fill="#5a9cff"/>
+    <rect x="122" y="283" width="112" height="10" rx="5" fill="#8a92a0"/>
+    <rect x="88" y="356" width="20" height="9" rx="4.5" fill="#5a9cff"/>
+    <rect x="122" y="355" width="88" height="10" rx="5" fill="#8a92a0"/>
+    <g filter="url(#ds)"><rect x="278" y="84" width="268" height="344" rx="40" fill="url(#db)" fill-opacity=".94"/></g>
+    <rect x="278" y="84" width="268" height="344" rx="40" fill="url(#dg)" fill-opacity="0.6"/>
+    <line x1="278" y1="180" x2="480" y2="180" stroke="#fff" stroke-opacity="0.25" stroke-width="3"/><line x1="278" y1="252" x2="480" y2="252" stroke="#fff" stroke-opacity="0.25" stroke-width="3"/><line x1="278" y1="324" x2="480" y2="324" stroke="#fff" stroke-opacity="0.25" stroke-width="3"/><line x1="278" y1="396" x2="480" y2="396" stroke="#fff" stroke-opacity="0.25" stroke-width="3"/>
+    <rect x="306" y="126" width="128" height="26" rx="7" fill="#ffffff"/>
+    <rect x="306" y="211" width="144" height="10" rx="5" fill="#ffffff" fill-opacity=".9"/>
+    <circle cx="312" cy="288" r="6" fill="#ffffff"/>
+    <rect x="328" y="283" width="104" height="10" rx="5" fill="#ffffff" fill-opacity=".9"/>
+    <circle cx="312" cy="360" r="6" fill="#ffffff"/>
+    <rect x="328" y="355" width="82" height="10" rx="5" fill="#ffffff" fill-opacity=".9"/>
+  </g>
+  <rect x="33.5" y="33.5" width="445" height="445" rx="98.5" fill="none" stroke="url(#dr)" stroke-width="3"/>
+</svg>
