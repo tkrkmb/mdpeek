@@ -95,6 +95,8 @@ chore(ui): bundle mermaid so the preview works offline
 
 ## 全体の仕様
 
+- 利用者に見える文言（ウィンドウ内の表示とラベル、端末への出力、`vim.notify`）は英語にする。README と CHANGELOG は日本語のままにする
+
 ### Neovimプラグイン（Lua）
 
 DO
@@ -334,3 +336,8 @@ DO NOT
   - 相対リンクで `b.md` に移った窓は、`mdpeek b.md` で前面に出て、`mdpeek a.md` では新しい窓が開く
   - 窓を閉じた後や、プロセスが異常終了した後でも、`mdpeek a.md` で新しい窓が開く
   - Neovimで別のバッファに `:MdPeek` すると、隠れていたプレビューが前面に出て、入力はNeovimに残る
+
+### 段階9：表示の英語化
+
+- 実装するもの：ウィンドウ内の文言とラベル、端末への出力の英語化
+- 完了の条件：ウィンドウ、端末、Neovimのいずれにも、日本語の文言が出ない
