@@ -27,6 +27,8 @@ pub struct Args {
 enum Mode {
     Nvim(Args),
     File { path: PathBuf, foreground: bool },
+    /// `--version`：版を表示して終わる
+    Version,
 }
 
 /// 起動時にどちらの相手で始めるか（ファイルモードは、起動前に読み込みまで済ませておく）
@@ -413,12 +415,17 @@ async fn open_path(
     }
 }
 
+const USAGE: &str =
+    "usage: mdpeek --nvim <socket> --token <token> | mdpeek [--foreground] <file> | mdpeek --version";
+
 /// `--nvim <socket> --token <token>` ならNeovim連携モード、
 /// 単一の位置引数（ファイルパス、`--foreground` を付けてもよい）ならスタンドアローンモードにする。
+/// `--version` だけなら、版を表示して終わる。
 fn parse_args(argv: impl Iterator<Item = String>) -> Result<Mode, String> {
     let mut socket = None;
     let mut token = None;
     let mut foreground = false;
+    let mut version = false;
     let mut positional = Vec::new();
     let mut argv = argv;
     while let Some(arg) = argv.next() {
@@ -426,9 +433,18 @@ fn parse_args(argv: impl Iterator<Item = String>) -> Result<Mode, String> {
             "--nvim" => socket = argv.next(),
             "--token" => token = argv.next(),
             "--foreground" => foreground = true,
+            "--version" => version = true,
             other if other.starts_with("--") => return Err(format!("unknown argument: {other}")),
             other => positional.push(other.to_string()),
         }
+    }
+    if version {
+        // `--version` は、他の引数と組み合わせない
+        return if socket.is_none() && token.is_none() && !foreground && positional.is_empty() {
+            Ok(Mode::Version)
+        } else {
+            Err(USAGE.to_string())
+        };
     }
     match (socket, token, positional.as_slice()) {
         (Some(socket), Some(token), []) if !foreground => Ok(Mode::Nvim(Args { socket, token })),
@@ -436,10 +452,7 @@ fn parse_args(argv: impl Iterator<Item = String>) -> Result<Mode, String> {
             path: PathBuf::from(path),
             foreground,
         }),
-        _ => Err(
-            "usage: mdpeek --nvim <socket> --token <token> | mdpeek [--foreground] <file>"
-                .to_string(),
-        ),
+        _ => Err(USAGE.to_string()),
     }
 }
 
@@ -452,6 +465,10 @@ fn main() {
         }
     };
     let launch = match mode {
+        Mode::Version => {
+            println!("mdpeek {}", env!("CARGO_PKG_VERSION"));
+            std::process::exit(0);
+        }
         Mode::Nvim(args) => Launch::Nvim(args),
         Mode::File { path, foreground } => match standalone::load(&path) {
             // 同じファイルを開いている窓があれば、そちらを前面に出して終わる
@@ -568,7 +585,7 @@ mod tests {
                 assert_eq!(args.socket, "/tmp/nvim.sock");
                 assert_eq!(args.token, "abc");
             }
-            Mode::File { .. } => panic!("expected nvim mode"),
+            _ => panic!("expected nvim mode"),
         }
     }
 
@@ -585,7 +602,7 @@ mod tests {
                 assert_eq!(path, std::path::PathBuf::from("note.md"));
                 assert!(!foreground, "standalone mode runs in the background by default");
             }
-            Mode::Nvim(_) => panic!("expected file mode"),
+            _ => panic!("expected file mode"),
         }
     }
 
@@ -595,7 +612,7 @@ mod tests {
             .expect("a mode");
         match mode {
             Mode::File { foreground, .. } => assert!(foreground),
-            Mode::Nvim(_) => panic!("expected file mode"),
+            _ => panic!("expected file mode"),
         }
     }
 
@@ -622,6 +639,18 @@ mod tests {
                 .map(String::from)
         )
         .is_err());
+    }
+
+    #[test]
+    fn parses_the_version_flag() {
+        let mode = parse_args(["--version"].into_iter().map(String::from)).expect("a mode");
+        assert!(matches!(mode, Mode::Version));
+    }
+
+    #[test]
+    fn rejects_the_version_flag_with_other_arguments() {
+        assert!(parse_args(["--version", "note.md"].into_iter().map(String::from)).is_err());
+        assert!(parse_args(["--foreground", "--version"].into_iter().map(String::from)).is_err());
     }
 
     #[test]
