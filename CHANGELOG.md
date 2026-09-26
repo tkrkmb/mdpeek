@@ -9,6 +9,12 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 
 ## [Unreleased]
 
+### Added
+
+- YAML front matter is shown as a table at the top, as on GitHub, instead of turning into a rule and a heading. If it is not valid YAML, it is shown as a code block.
+- Footnotes (`[^1]`) and alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) are rendered.
+- Code blocks with a language name are syntax highlighted, in light and dark themes.
+
 ## [v0.9.0] - 2026-09-25
 
 ### Changed
