@@ -70,6 +70,7 @@ mdsight path/to/note.md
 | 操作 | 動作 |
 | --- | --- |
 | `T` | テーマを system → light → dark の順に切り替える |
+| Cmd+F（macOS）、Ctrl+F（Linux） | ページ内を検索する。Enter／Shift+Enter で次／前の一致へ移り、Esc で閉じる。検索語に大文字が含まれるときだけ、大文字と小文字を区別する。図と数式の中は検索しない |
 | Cmd+クリック（macOS）、Ctrl+クリック（Linux） | Neovimのカーソルを、クリックしたブロックの開始行へ移す |
 | 相対パスの`.md`／`.markdown`リンクをクリック | そのファイルを開く（`#見出し`があればそこへ移動） |
 | `http:`／`https:`のリンクをクリック | 既定のブラウザで開く |
