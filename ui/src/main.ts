@@ -257,7 +257,14 @@ function render(doc: Document | null): void {
   // 読んでいた位置を、差し替えの前に記録して、後で戻す。
   // 別の文書に替わったときは、前の文書の位置は意味を持たないので記録しない
   const anchor = navigation === null && !switched ? capture() : null;
+  // 開いていた details を、出現順を手がかりに、差し替えた後も開いたままにする
+  const opened = navigation === null && !switched ? Array.from(body.querySelectorAll("details"), (details) => details.open) : [];
   body.innerHTML = doc.html;
+  Array.from(body.querySelectorAll("details")).forEach((details, index) => {
+    if (opened[index]) {
+      details.open = true;
+    }
+  });
   renderMath(body);
   highlightCode(body);
   // 位置表を作る前に、コードブロックを枠で包む（data-sourcepos が枠へ移る）

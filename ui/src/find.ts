@@ -72,6 +72,10 @@ function setCurrent(index: number, scroll: boolean): void {
   for (const mark of matches[current] ?? []) {
     mark.classList.add(CURRENT);
   }
+  // 閉じた details の中の一致なら、見えるように開く
+  for (let details = matches[current]?.[0]?.closest("details") ?? null; details !== null; details = details.parentElement?.closest("details") ?? null) {
+    details.open = true;
+  }
   showCount();
   if (scroll) {
     reveal(matches[current] ?? []);
