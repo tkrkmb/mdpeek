@@ -131,9 +131,16 @@ function M.open(gen, version, path)
   local new_buf = vim.api.nvim_win_get_buf(win)
   local ok, reason = mdsight.check_buf(new_buf)
   if not ok then
-    -- 開けたが、対象にできるバッファではなかった。対象は設定し直さない
-    -- (ウィンドウはすでに新しいバッファを表示しているので、元のautocmdは戻さない)
+    -- 開けたが、対象にできるバッファではなかった。元の対象のままにし、
+    -- 対象ウィンドウに対象にできるバッファが戻ってくるのを待つ
     vim.notify("mdsight: cannot preview this buffer: " .. reason, vim.log.levels.WARN)
+    if vim.api.nvim_buf_is_valid(previous_buf) then
+      mdsight.set_autocmds(previous_buf)
+    else
+      state.buf = nil
+      mdsight.set_autocmds(nil)
+    end
+    state.away = true
     return false
   end
 
