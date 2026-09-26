@@ -67,6 +67,10 @@ let pending: { gen: number; line: number } | null = null;
 let pendingNavigation: PendingNavigation | null = null;
 /** 戻る／進むで戻した位置。画像と図の描画が終わった時点で、もう一度合わせる */
 let settling: Anchor | null = null;
+/** 戻る／進むで位置を戻した世代。その世代で最初に届くカーソル行には追従しない */
+let skipCursorGen: number | null = null;
+/** 最後にカーソル行を受け取った世代 */
+let lastCursorGen = -1;
 /** 最後に届いたNeovimの検索の一致。表示中の世代・版と一致し、描画が終わっているときだけ適用する */
 let latestSearch: NvimSearch | null = null;
 
@@ -119,6 +123,13 @@ function followCursor(line: number): void {
 function receiveCursor(gen: number, line: number): void {
   // 古い対象のものは捨てる
   if (gen < shownGen) {
+    return;
+  }
+  const first = gen !== lastCursorGen;
+  lastCursorGen = gen;
+  // 戻した位置を、Neovimのカーソル位置で上書きしない
+  if (first && gen === skipCursorGen) {
+    skipCursorGen = null;
     return;
   }
   if (rendering || gen !== shownGen) {
@@ -177,10 +188,25 @@ function matchPendingNavigation(gen: number, version: number): PendingNavigation
  * 届いていればすぐに動き、まだなら届いたときに動けるように覚えておく
  */
 function navigateTo(target: NavigationTarget, fragment: string | null): void {
+  if (target.anchor !== null) {
+    skipFirstCursor(target.gen);
+  }
   if (target.gen === shownGen) {
     arrive(fragment, target.anchor);
   } else if (target.gen > shownGen) {
     pendingNavigation = { gen: target.gen, version: target.version, fragment, anchor: target.anchor };
+  }
+}
+
+/**
+ * 位置を戻す世代で、最初に届くカーソル行に追従しないようにする。
+ * カーソル行はコマンドの結果より先に届いていることがあるので、そのときは待っているものを捨てる
+ */
+function skipFirstCursor(gen: number): void {
+  if (lastCursorGen !== gen) {
+    skipCursorGen = gen;
+  } else if (pending !== null && pending.gen === gen) {
+    pending = null;
   }
 }
 
