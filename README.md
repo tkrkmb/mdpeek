@@ -73,6 +73,7 @@ The window opens in the background and the command returns immediately. The exec
 | --- | --- |
 | `T` | Cycle the theme: system → light → dark |
 | `j` / `k`, `Ctrl-d` / `Ctrl-u`, `gg` / `G` | Scroll a little, half a page, or to the top / bottom (the Neovim cursor does not move) |
+| Copy button at the top right of a code block (shown on hover) | Copy the code |
 | `/`, `n` / `N` | Open find in page; go to the next / previous match (reopens the find bar with the last pattern if it was closed) |
 | Cmd+F (macOS), Ctrl+F (Linux) | Find in the page. Enter / Shift+Enter moves to the next / previous match, Esc closes. Patterns are written as in Neovim's `/` (such as `\<word\>`, `foo\\|bar`, `\v(a\|b)+`, `\zs`); `\c` / `\C` set the case, otherwise case is ignored unless the pattern has an uppercase letter. Diagrams and math are not searched |
 | Cmd+click (macOS), Ctrl+click (Linux) | Move the Neovim cursor to the first line of the clicked block |

@@ -11,6 +11,7 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 
 ### Added
 
+- A copy button appears at the top right of a code block when you hover over it.
 - Vim keys in the preview: `j` / `k`, `Ctrl-d` / `Ctrl-u` and `gg` / `G` scroll, `/` opens find in page, and `n` / `N` move between matches. They do not move the Neovim cursor.
 - Going back or forward returns to where you were reading in that document, instead of its top.
 - Find in page accepts Neovim search patterns (Vim regular expressions such as `\<word\>`, `foo\|bar`, `\v`, `\zs`, `\c`). Unsupported or invalid patterns show "Invalid pattern".
