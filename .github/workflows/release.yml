@@ -72,9 +72,10 @@ jobs:
             echo "CHANGELOG.md has no section for ${GITHUB_REF_NAME}" >&2
             exit 1
           fi
-          # もう一方のジョブが先に作っていれば、説明だけ揃える
-          gh release create "${GITHUB_REF_NAME}" --notes-file notes.md \
-            || gh release edit "${GITHUB_REF_NAME}" --notes-file notes.md
+          # もう一方のジョブが先に作っていれば、説明だけ揃える。
+          # タイトルを付けないと、GitHubは軽いタグのコミットの件名を見出しに使うので、タグ名を付ける
+          gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file notes.md \
+            || gh release edit "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file notes.md
           gh release upload "${GITHUB_REF_NAME}" "${{ steps.pack.outputs.archive }}" --clobber
 
       # タグ以外（手動実行）では、成果物として残すだけにする
@@ -146,9 +147,10 @@ jobs:
             echo "CHANGELOG.md has no section for ${GITHUB_REF_NAME}" >&2
             exit 1
           fi
-          # もう一方のジョブが先に作っていれば、説明だけ揃える
-          gh release create "${GITHUB_REF_NAME}" --notes-file notes.md \
-            || gh release edit "${GITHUB_REF_NAME}" --notes-file notes.md
+          # もう一方のジョブが先に作っていれば、説明だけ揃える。
+          # タイトルを付けないと、GitHubは軽いタグのコミットの件名を見出しに使うので、タグ名を付ける
+          gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file notes.md \
+            || gh release edit "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes-file notes.md
           gh release upload "${GITHUB_REF_NAME}" "${{ steps.pack.outputs.archive }}" --clobber
 
       - uses: actions/upload-artifact@v7
