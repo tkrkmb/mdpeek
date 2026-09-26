@@ -3,6 +3,7 @@ import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
+import { codeLineAt, codeLineRect, codeLinesOf } from "./codelines";
 import { addCopyButtons } from "./copy";
 import { renderDiagrams } from "./diagrams";
 import { bottomInset, closeFind, initFind, isTypingInFind, openFind, refreshFind, stepFind } from "./find";
@@ -112,7 +113,9 @@ function followCursor(line: number): void {
   // パスの帯と、下端の検索の帯に隠れた部分は、見えていないものとして扱う
   const inset = topInset();
   const bottom = window.innerHeight - bottomInset();
-  const rect = block.element.getBoundingClientRect();
+  // コードブロックの中の行なら、ブロックではなくその行を対象にする
+  const lines = line >= block.startLine && line <= block.endLine ? codeLinesOf(block) : null;
+  const rect = (lines !== null ? codeLineRect(lines, line) : null) ?? block.element.getBoundingClientRect();
   const visible = rect.bottom > inset && rect.top < bottom;
   if (visible) {
     return;
@@ -415,7 +418,10 @@ body.addEventListener("click", (event) => {
   if (block === null) {
     return;
   }
-  void invoke("jump", { gen: shownGen, version: shownVersion, line: block.startLine });
+  // コードブロックの中なら、クリックした位置のコードの行へ（囲いや余白の上なら、ブロックの開始行へ）
+  const lines = codeLinesOf(block);
+  const codeLine = lines !== null && target !== null && lines.pre.contains(target) ? codeLineAt(lines, event.clientY) : null;
+  void invoke("jump", { gen: shownGen, version: shownVersion, line: codeLine ?? block.startLine });
 });
 
 initPathBar();
