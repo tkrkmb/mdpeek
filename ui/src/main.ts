@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 import { renderDiagrams } from "./diagrams";
+import { highlightCode } from "./highlight";
 import { resolveImages } from "./images";
 import { handleLink } from "./links";
 import { renderMath } from "./math";
@@ -200,6 +201,7 @@ function render(doc: Document | null): void {
   const anchor = navigation === null && !switched ? capture() : null;
   body.innerHTML = doc.html;
   renderMath(body);
+  highlightCode(body);
   rebuildTable();
 
   const diagrams = renderDiagrams(body, current).then((drawn) => {
