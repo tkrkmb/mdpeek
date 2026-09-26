@@ -3,27 +3,39 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { MatchRequest, MatchResponse } from "./matchworker";
 import { vimMatches } from "./vimregex";
 
-/** テスト用の Worker。`respond` が true なら本物と同じ計算をして返し、false なら返さない（固まった相手） */
+/**
+ * テスト用の Worker。本物と同じく、ブロックを1つ探し終えるたびに結果を返す。
+ * 文字列に `HANG` を含むブロックでは、探し終わらない（止まらない正規表現のかわり）
+ */
 class FakeWorker {
-  static respond = true;
   static created = 0;
   static terminated = 0;
   onmessage: ((event: MessageEvent<MatchResponse>) => void) | null = null;
+  private alive = true;
 
   constructor() {
     FakeWorker.created += 1;
   }
 
   postMessage(request: MatchRequest): void {
-    if (!FakeWorker.respond) {
-      return;
-    }
     const regex = new RegExp(request.source, request.flags);
-    const ranges = request.texts.map((text) => vimMatches(text, regex));
-    queueMicrotask(() => this.onmessage?.({ data: { id: request.id, ranges } } as MessageEvent<MatchResponse>));
+    void (async () => {
+      for (let index = request.start; index < request.texts.length; index += 1) {
+        const text = request.texts[index];
+        if (text.includes("HANG")) {
+          return;
+        }
+        await Promise.resolve();
+        if (!this.alive) {
+          return;
+        }
+        this.onmessage?.({ data: { id: request.id, index, ranges: vimMatches(text, regex) } } as unknown as MessageEvent<MatchResponse>);
+      }
+    })();
   }
 
   terminate(): void {
+    this.alive = false;
     FakeWorker.terminated += 1;
   }
 }
@@ -32,7 +44,6 @@ beforeEach(() => {
   vi.resetModules();
   vi.useFakeTimers();
   vi.stubGlobal("Worker", FakeWorker);
-  FakeWorker.respond = true;
   FakeWorker.created = 0;
   FakeWorker.terminated = 0;
 });
@@ -43,34 +54,49 @@ afterEach(() => {
 });
 
 describe("findMatches", () => {
-  test("returns the ranges for each text", async () => {
+  test("returns the ranges for each block", async () => {
     const { findMatches } = await import("./matcher");
     const result = await findMatches(/b/dgu, ["abc", "xyz", "bb"]);
     expect(result).toEqual({
       kind: "done",
       ranges: [[{ start: 1, end: 2 }], [], [{ start: 0, end: 1 }, { start: 1, end: 2 }]],
     });
+    expect(FakeWorker.terminated).toBe(0);
   });
 
-  test("gives up and throws the worker away when it takes too long", async () => {
-    const { findMatches, MATCH_TIMEOUT_MS } = await import("./matcher");
-    FakeWorker.respond = false;
-    const pending = findMatches(/.*.*.*x/dgu, ["a".repeat(800)]);
-    await vi.advanceTimersByTimeAsync(MATCH_TIMEOUT_MS);
-    expect(await pending).toEqual({ kind: "timeout" });
+  test("skips only the block that takes too long and keeps the others", async () => {
+    const { findMatches, BLOCK_TIMEOUT_MS } = await import("./matcher");
+    const pending = findMatches(/b/dgu, ["ab", "HANG b", "b"]);
+    await vi.advanceTimersByTimeAsync(BLOCK_TIMEOUT_MS);
+    expect(await pending).toEqual({
+      kind: "done",
+      ranges: [[{ start: 1, end: 2 }], null, [{ start: 0, end: 1 }]],
+    });
+    // 固まったスレッドは捨て、続きは新しいスレッドで探す
     expect(FakeWorker.terminated).toBe(1);
-
-    // 次の検索は、新しい Worker で動く
-    FakeWorker.respond = true;
-    expect((await findMatches(/a/dgu, ["a"])).kind).toBe("done");
     expect(FakeWorker.created).toBe(2);
+  });
+
+  test("gives up the rest once the whole search runs out of time", async () => {
+    const { findMatches, BLOCK_TIMEOUT_MS, SEARCH_TIMEOUT_MS } = await import("./matcher");
+    const texts = [...Array.from({ length: 10 }, () => "HANG"), "b"];
+    let settled = false;
+    const pending = findMatches(/b/dgu, texts).then((result) => {
+      settled = true;
+      return result;
+    });
+    await vi.advanceTimersByTimeAsync(SEARCH_TIMEOUT_MS - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await pending;
+    // 時間内に試せたブロックも、試せなかったブロックも、飛ばしたものとして返す
+    expect(result).toEqual({ kind: "done", ranges: texts.map(() => null) });
+    expect(FakeWorker.terminated).toBe(Math.ceil(SEARCH_TIMEOUT_MS / BLOCK_TIMEOUT_MS));
   });
 
   test("stops a running search when the next one starts", async () => {
     const { findMatches } = await import("./matcher");
-    FakeWorker.respond = false;
-    const first = findMatches(/.*.*.*x/dgu, ["a".repeat(800)]);
-    FakeWorker.respond = true;
+    const first = findMatches(/b/dgu, ["HANG"]);
     const second = findMatches(/a/dgu, ["a"]);
     expect(await first).toEqual({ kind: "superseded" });
     expect((await second).kind).toBe("done");
@@ -79,8 +105,7 @@ describe("findMatches", () => {
 
   test("cancels a running search", async () => {
     const { cancelMatches, findMatches } = await import("./matcher");
-    FakeWorker.respond = false;
-    const pending = findMatches(/.*.*.*x/dgu, ["a".repeat(800)]);
+    const pending = findMatches(/b/dgu, ["HANG"]);
     cancelMatches();
     expect(await pending).toEqual({ kind: "superseded" });
   });
@@ -92,5 +117,10 @@ describe("findMatches", () => {
     await findMatches(/a/dgu, ["a"]);
     expect(FakeWorker.created).toBe(1);
     expect(FakeWorker.terminated).toBe(0);
+  });
+
+  test("finishes at once when there is nothing to search", async () => {
+    const { findMatches } = await import("./matcher");
+    expect(await findMatches(/a/dgu, [])).toEqual({ kind: "done", ranges: [] });
   });
 });

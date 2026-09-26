@@ -19,8 +19,8 @@ let matches: HTMLElement[][] = [];
 let current = -1;
 /** 検索語が正しくないか、対応しない書き方を含む */
 let invalid = false;
-/** 探すのに時間がかかりすぎたので、打ち切った */
-let timedOut = false;
+/** 探すのに時間がかかりすぎて飛ばしたブロックの数 */
+let skipped = 0;
 /** いちばん新しい検索の番号。結果が届いたときに、これより古い検索のものなら捨てる */
 let latestSearch = 0;
 /** 閉じる前に現在だった一致の順番。閉じた後の n／N で、ここから進める */
@@ -38,16 +38,17 @@ function showCount(): void {
   if (count === null || input === null) {
     return;
   }
+  // 飛ばしたブロックがあれば、件数が全体ではないことを知らせる
+  const partial = skipped > 0 && input.value !== "" && !invalid;
+  count.title = partial ? `Skipped ${skipped} ${skipped === 1 ? "block" : "blocks"} that took too long to search` : "";
   if (input.value === "") {
     count.textContent = "";
   } else if (invalid) {
     count.textContent = "Invalid pattern";
-  } else if (timedOut) {
-    count.textContent = "Timed out";
   } else if (matches.length === 0) {
-    count.textContent = "No results";
+    count.textContent = partial ? "Timed out" : "No results";
   } else {
-    count.textContent = `${current + 1}/${matches.length}`;
+    count.textContent = `${current + 1}/${matches.length}${partial ? " (partial)" : ""}`;
   }
 }
 
@@ -107,7 +108,7 @@ async function search(keep: boolean): Promise<void> {
   invalid = isOpen() && input.value !== "" && regex === null;
   if (regex === null) {
     cancelMatches();
-    timedOut = false;
+    skipped = 0;
     clearMatches();
     showCount();
     return;
@@ -124,16 +125,20 @@ async function search(keep: boolean): Promise<void> {
     return;
   }
   clearMatches();
-  timedOut = result.kind === "timeout";
-  if (result.kind === "done") {
-    blocks.forEach((block, position) => {
-      // 探している間に本文が変わったブロックは、範囲がずれるので強調しない
-      const index = collectText(block);
-      if (block.parentElement === root && index.text === texts[position]) {
-        matches.push(...markRanges(index, result.ranges[position], HIT));
-      }
-    });
-  }
+  skipped = 0;
+  blocks.forEach((block, position) => {
+    const ranges = result.ranges[position];
+    // 時間がかかりすぎて飛ばしたブロック
+    if (ranges === null) {
+      skipped += 1;
+      return;
+    }
+    // 探している間に本文が変わったブロックは、範囲がずれるので強調しない
+    const index = collectText(block);
+    if (block.parentElement === root && index.text === texts[position]) {
+      matches.push(...markRanges(index, ranges, HIT));
+    }
+  });
   if (matches.length === 0) {
     showCount();
     return;
