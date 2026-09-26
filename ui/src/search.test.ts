@@ -1,35 +1,12 @@
 import { describe, expect, test } from "vitest";
 
-import { clearMarks, collectText, findAll, isCaseSensitive, markRanges } from "./search";
+import { clearMarks, collectText, markRanges } from "./search";
 
 function fragment(html: string): HTMLElement {
   const root = document.createElement("div");
   root.innerHTML = html;
   return root;
 }
-
-describe("findAll", () => {
-  test("ignores case when the query is all lowercase", () => {
-    expect(findAll("README and readme", "readme")).toEqual([
-      { start: 0, end: 6 },
-      { start: 11, end: 17 },
-    ]);
-  });
-
-  test("matches case when the query has an uppercase letter", () => {
-    expect(isCaseSensitive("README")).toBe(true);
-    expect(findAll("README and readme", "README")).toEqual([{ start: 0, end: 6 }]);
-  });
-
-  test("treats the query as plain text, not a pattern", () => {
-    expect(findAll("a.b axb (c)", "a.b")).toEqual([{ start: 0, end: 3 }]);
-    expect(findAll("a.b axb (c)", "(c)")).toEqual([{ start: 8, end: 11 }]);
-  });
-
-  test("finds nothing for an empty query", () => {
-    expect(findAll("text", "")).toEqual([]);
-  });
-});
 
 describe("collectText", () => {
   test("joins text across elements", () => {
@@ -46,6 +23,11 @@ describe("collectText", () => {
     expect(collectText(root).text).toBe("keep");
   });
 
+  test("returns nothing when the block itself is a diagram or math", () => {
+    const root = fragment('<pre data-mermaid-source="graph"><svg><text>skip</text></svg></pre>');
+    expect(collectText(root.firstElementChild!).text).toBe("");
+  });
+
   test("includes code blocks and tables", () => {
     const root = fragment(
       '<pre><code class="language-rust"><span class="hljs-keyword">fn</span> main</code></pre><table><tr><td>cell</td></tr></table>',
@@ -58,7 +40,7 @@ describe("markRanges and clearMarks", () => {
   test("wraps a match that spans elements, in order", () => {
     const root = fragment("<p>foo <strong>bar</strong> baz</p>");
     const index = collectText(root);
-    const marks = markRanges(index, findAll(index.text, "o bar b"), "hit");
+    const marks = markRanges(index, [{ start: 2, end: 9 }], "hit");
     expect(marks).toHaveLength(1);
     expect(marks[0].map((mark) => mark.textContent)).toEqual(["o ", "bar", " b"]);
     expect(root.innerHTML).toBe(
@@ -69,7 +51,7 @@ describe("markRanges and clearMarks", () => {
   test("wraps several matches in one text node", () => {
     const root = fragment("<p>ab ab ab</p>");
     const index = collectText(root);
-    const marks = markRanges(index, findAll(index.text, "ab"), "hit");
+    const marks = markRanges(index, [{ start: 0, end: 2 }, { start: 3, end: 5 }, { start: 6, end: 8 }], "hit");
     expect(marks.map((group) => group.length)).toEqual([1, 1, 1]);
     expect(root.querySelectorAll("mark.hit")).toHaveLength(3);
     expect(root.textContent).toBe("ab ab ab");
@@ -79,7 +61,7 @@ describe("markRanges and clearMarks", () => {
     const root = fragment("<p>foo <strong>bar</strong> baz</p>");
     const before = root.innerHTML;
     const index = collectText(root);
-    markRanges(index, findAll(index.text, "a"), "hit");
+    markRanges(index, [{ start: 5, end: 6 }, { start: 9, end: 10 }], "hit");
     clearMarks(root, "hit");
     expect(root.innerHTML).toBe(before);
     expect(root.querySelector("p")?.childNodes).toHaveLength(3);
@@ -88,9 +70,9 @@ describe("markRanges and clearMarks", () => {
   test("leaves marks of another kind alone", () => {
     const root = fragment("<p>foo bar</p>");
     let index = collectText(root);
-    markRanges(index, findAll(index.text, "foo"), "other");
+    markRanges(index, [{ start: 0, end: 3 }], "other");
     index = collectText(root);
-    markRanges(index, findAll(index.text, "bar"), "hit");
+    markRanges(index, [{ start: 4, end: 7 }], "hit");
     clearMarks(root, "hit");
     expect(root.innerHTML).toBe('<p><mark class="other">foo</mark> bar</p>');
   });
