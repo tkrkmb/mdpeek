@@ -3,21 +3,22 @@ import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-import { codeLineAt, codeLineRect, codeLinesOf } from "./codelines";
+import { applyPendingCursor, receiveCursor } from "./cursor";
 import { addCopyButtons } from "./copy";
 import { renderDiagrams } from "./diagrams";
-import { bottomInset, closeFind, initFind, isTypingInFind, openFind, refreshFind, stepFind } from "./find";
+import { initFind, refreshFind } from "./find";
 import { highlightCode } from "./highlight";
+import { arrive, initHistory, matchPendingNavigation, refreshHistoryAvailability, resetSettling, restoreSettled } from "./history";
 import { resolveImages } from "./images";
-import { handleLink } from "./links";
+import { initClicks } from "./jump";
+import { initKeys } from "./keys";
 import { renderMath } from "./math";
-import { initHistoryButtons, initSwipeGestures } from "./navigation";
 import { applyNvimSearch, type NvimSearch } from "./nvimsearch";
-import { flash, setProblem } from "./notice";
-import { initPathBar, showPath, topInset } from "./pathbar";
-import { revealRect } from "./scroll";
-import { buildTable, findBlock, type Block } from "./sourcepos";
-import { cycle, onThemeChange, start as startTheme } from "./theme";
+import { setProblem } from "./notice";
+import { initPathBar, showPath } from "./pathbar";
+import { capture, restore } from "./position";
+import { onThemeChange, start as startTheme } from "./theme";
+import { body, isCurrent, rebuildTable, view } from "./view";
 
 type Document = {
   gen: number;
@@ -31,137 +32,24 @@ type CursorEvent = {
   line: number;
 };
 
-/** 戻る／進むで開いたときは、その文書で読んでいた位置（`anchor`）も返ってくる */
-type NavigationTarget = {
-  gen: number;
-  version: number;
-  anchor: Anchor | null;
-};
-
-type HistoryAvailability = {
-  can_back: boolean;
-  can_forward: boolean;
-};
-
-/** リンクや履歴で移動した先。届いた文書と世代・版が一致したら、そちらを優先する */
-type PendingNavigation = {
-  gen: number;
-  version: number;
-  fragment: string | null;
-  anchor: Anchor | null;
-};
-
-/** 画面の上端付近にあるブロックのソース行と、画面内でのオフセット */
-type Anchor = {
-  line: number;
-  offset: number;
-};
-
-const body = document.querySelector<HTMLElement>(".markdown-body")!;
-
-let shownGen = -1;
-let shownVersion = -1;
-let table: Block[] = [];
-/** 描画（画像と図を含む）が終わるまで true */
-let rendering = false;
-/** 描画を待っている間に届いた、いちばん新しいカーソル（世代付き） */
-let pending: { gen: number; line: number } | null = null;
-/** リンクや履歴での移動先。まだ文書が届いていない間だけ保持する */
-let pendingNavigation: PendingNavigation | null = null;
-/** 戻る／進むで戻した位置。画像と図の描画が終わった時点で、もう一度合わせる */
-let settling: Anchor | null = null;
-/** 戻る／進むで位置を戻した世代。その世代で最初に届くカーソル行には追従しない */
-let skipCursorGen: number | null = null;
-/** 最後にカーソル行を受け取った世代 */
-let lastCursorGen = -1;
 /** 最後に届いたNeovimの検索の一致。表示中の世代・版と一致し、描画が終わっているときだけ適用する */
 let latestSearch: NvimSearch | null = null;
 
-function isCurrent(version: number): () => boolean {
-  return () => version === shownVersion;
-}
-
-function rebuildTable(): void {
-  table = buildTable(body);
-}
-
-function capture(): Anchor | null {
-  const inset = topInset();
-  for (const block of table) {
-    const rect = block.element.getBoundingClientRect();
-    if (rect.bottom > inset) {
-      return { line: block.startLine, offset: rect.top };
-    }
-  }
-  return null;
-}
-
-function restore(anchor: Anchor): void {
-  const target = findBlock(table, anchor.line) ?? table[0];
-  if (target === undefined) {
-    return;
-  }
-  const top = window.scrollY + target.element.getBoundingClientRect().top - anchor.offset;
-  window.scrollTo({ top, behavior: "instant" });
-}
-
-/** その行のブロックが画面に無ければ、上から1/3の位置に来るようにスクロールする */
-function followCursor(line: number): void {
-  const block = findBlock(table, line);
-  if (block === null) {
-    return;
-  }
-  // コードブロックの中の行なら、ブロックではなくその行を対象にする
-  const lines = line >= block.startLine && line <= block.endLine ? codeLinesOf(block) : null;
-  const rect = (lines !== null ? codeLineRect(lines, line) : null) ?? block.element.getBoundingClientRect();
-  revealRect(rect, topInset(), bottomInset());
-}
-
-function receiveCursor(gen: number, line: number): void {
-  // 古い対象のものは捨てる
-  if (gen < shownGen) {
-    return;
-  }
-  const first = gen !== lastCursorGen;
-  lastCursorGen = gen;
-  // 戻した位置を、Neovimのカーソル位置で上書きしない
-  if (first && gen === skipCursorGen) {
-    skipCursorGen = null;
-    return;
-  }
-  if (rendering || gen !== shownGen) {
-    // 最新のものだけを保持し、その世代の描画が終わってから適用する
-    pending = { gen, line };
-    return;
-  }
-  followCursor(line);
-}
-
 function applySearchIfCurrent(): void {
-  if (latestSearch === null || rendering) {
+  if (latestSearch === null || view.rendering) {
     return;
   }
-  if (latestSearch.gen !== shownGen || latestSearch.version !== shownVersion) {
+  if (latestSearch.gen !== view.gen || latestSearch.version !== view.version) {
     return;
   }
-  applyNvimSearch(body, table, latestSearch);
-}
-
-function applyPendingCursor(): void {
-  if (pending === null || pending.gen !== shownGen) {
-    pending = null;
-    return;
-  }
-  const line = pending.line;
-  pending = null;
-  followCursor(line);
+  applyNvimSearch(body, view.table, latestSearch);
 }
 
 /** 画像や図が入ると高さが変わるので、そのたびに位置表を作り直す */
 function watchImages(version: number): void {
   for (const image of Array.from(body.querySelectorAll("img"))) {
     const update = () => {
-      if (version === shownVersion) {
+      if (version === view.version) {
         rebuildTable();
       }
     };
@@ -170,85 +58,27 @@ function watchImages(version: number): void {
   }
 }
 
-/** 届いた文書が、いま待っているリンク先や履歴の行き先と一致するか */
-function matchPendingNavigation(gen: number, version: number): PendingNavigation | null {
-  if (pendingNavigation === null || pendingNavigation.gen !== gen || pendingNavigation.version !== version) {
-    return null;
-  }
-  const navigation = pendingNavigation;
-  pendingNavigation = null;
-  return navigation;
-}
-
-/**
- * 移動先の文書は、コマンドの結果より先に届いていることがある。
- * 届いていればすぐに動き、まだなら届いたときに動けるように覚えておく
- */
-function navigateTo(target: NavigationTarget, fragment: string | null): void {
-  if (target.anchor !== null) {
-    skipFirstCursor(target.gen);
-  }
-  if (target.gen === shownGen) {
-    arrive(fragment, target.anchor);
-  } else if (target.gen > shownGen) {
-    pendingNavigation = { gen: target.gen, version: target.version, fragment, anchor: target.anchor };
-  }
-}
-
-/**
- * 位置を戻す世代で、最初に届くカーソル行に追従しないようにする。
- * カーソル行はコマンドの結果より先に届いていることがあるので、そのときは待っているものを捨てる
- */
-function skipFirstCursor(gen: number): void {
-  if (lastCursorGen !== gen) {
-    skipCursorGen = gen;
-  } else if (pending !== null && pending.gen === gen) {
-    pending = null;
-  }
-}
-
-/** 移動先の文書で、読んでいた位置があればそこへ、なければ #見出し か先頭へ動く */
-function arrive(fragment: string | null, anchor: Anchor | null): void {
-  if (anchor === null) {
-    goToFragmentOrTop(fragment);
-    return;
-  }
-  restore(anchor);
-  // 描画を待っている間なら、画像と図で高さが変わった後に、もう一度合わせる
-  settling = rendering ? anchor : null;
-}
-
-/** #見出し があればその要素へ、なければ先頭へ移動する */
-function goToFragmentOrTop(fragment: string | null): void {
-  const target = fragment !== null ? document.getElementById(fragment) : null;
-  if (target !== null) {
-    target.scrollIntoView();
-  } else {
-    window.scrollTo({ top: 0 });
-  }
-}
-
 function render(doc: Document | null): void {
   if (doc === null) {
     return;
   }
   // 表示中の版より古ければ破棄する
-  if (doc.version < shownVersion) {
+  if (doc.version < view.version) {
     return;
   }
   // リンクや履歴での移動先なら、読んでいた位置ではなく先頭／見出しへ動く
   const navigation = matchPendingNavigation(doc.gen, doc.version);
-  const switched = doc.gen !== shownGen;
+  const switched = doc.gen !== view.gen;
   if (switched) {
     // 対象世代が変わった(自分の操作でも、:MdSightによる切り替えでも)ので、
     // 戻る／進むボタンの有効/無効を最新の状態に合わせ直す
     void refreshHistoryAvailability();
   }
-  shownGen = doc.gen;
-  shownVersion = doc.version;
+  view.gen = doc.gen;
+  view.version = doc.version;
   showPath(doc.path);
   const current = isCurrent(doc.version);
-  rendering = true;
+  view.rendering = true;
 
   // 読んでいた位置を、差し替えの前に記録して、後で戻す。
   // 別の文書に替わったときは、前の文書の位置は意味を持たないので記録しない
@@ -281,7 +111,7 @@ function render(doc: Document | null): void {
     }
   });
 
-  settling = null;
+  resetSettling();
   if (navigation !== null) {
     arrive(navigation.fragment, navigation.anchor);
   } else if (switched) {
@@ -295,247 +125,29 @@ function render(doc: Document | null): void {
       return;
     }
     rebuildTable();
-    rendering = false;
-    if (settling !== null) {
-      restore(settling);
-      settling = null;
-    }
+    view.rendering = false;
+    restoreSettled();
     applyPendingCursor();
     // 描画を待っている間に届いた検索の一致も、ここで適用する
     applySearchIfCurrent();
   });
 }
 
-const isMac = navigator.userAgent.includes("Macintosh");
-
-function blockAt(target: Element): Block | null {
-  // クリックされた要素に最も近い祖先で、位置表に含まれるもの
-  for (let element: Element | null = target; element !== null; element = element.parentElement) {
-    const found = table.find((block) => block.element === element);
-    if (found !== undefined) {
-      return found;
-    }
-  }
-  return null;
-}
-
-/** 見つからないときは、縦方向で最も近いブロックを使う */
-function nearestBlock(clientY: number): Block | null {
-  let best: Block | null = null;
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (const block of table) {
-    const rect = block.element.getBoundingClientRect();
-    const distance =
-      clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
-    if (distance < bestDistance) {
-      best = block;
-      bestDistance = distance;
-    }
-  }
-  return best;
-}
-
-let updateHistoryButtons: ((state: HistoryAvailability) => void) | null = null;
-/** 直前に取得した、戻る／進むを辿れるかどうか */
-let availability: HistoryAvailability = { can_back: false, can_forward: false };
-
-/** 戻る／進むボタンの有効/無効を、いまの履歴に合わせ直す */
-async function refreshHistoryAvailability(): Promise<void> {
-  try {
-    availability = await invoke<HistoryAvailability>("history_state");
-    updateHistoryButtons?.(availability);
-  } catch {
-    // 取得できなくても、表示は変えない
-  }
-}
-
-/** 相対パスの .md／.markdown リンクを開く。#見出し があれば、開いた後にそこへ動く */
-async function followLink(href: string): Promise<void> {
-  const hashIndex = href.indexOf("#");
-  const fragment = hashIndex === -1 ? null : decodeURIComponent(href.slice(hashIndex + 1));
-  const path = hashIndex === -1 ? href : href.slice(0, hashIndex);
-  try {
-    // いま読んでいる位置を渡し、戻ったときにそこへ戻れるようにする
-    const target = await invoke<NavigationTarget>("open_link", { href: path, version: shownVersion, anchor: capture() });
-    navigateTo(target, fragment);
-  } catch (error) {
-    flash(`Cannot open the link: ${path} (${String(error)})`);
-  } finally {
-    void refreshHistoryAvailability();
-  }
-}
-
-/** 戻る／進むの履歴を辿る */
-async function navigateHistory(command: "go_back" | "go_forward"): Promise<void> {
-  const back = command === "go_back";
-  // 辿れる履歴が無いときは、失敗として知らせず何もしない
-  if (back ? !availability.can_back : !availability.can_forward) {
-    return;
-  }
-  try {
-    const target = await invoke<NavigationTarget>(command, { anchor: capture() });
-    navigateTo(target, null);
-  } catch (error) {
-    flash(`${back ? "Cannot go back" : "Cannot go forward"} (${String(error)})`);
-  } finally {
-    void refreshHistoryAvailability();
-  }
-}
-
-function isBack(event: KeyboardEvent): boolean {
-  return isMac ? event.metaKey && event.key === "[" : event.altKey && event.key === "ArrowLeft";
-}
-
-function isForward(event: KeyboardEvent): boolean {
-  return isMac ? event.metaKey && event.key === "]" : event.altKey && event.key === "ArrowRight";
-}
-
-function isFind(event: KeyboardEvent): boolean {
-  return (isMac ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "f";
-}
-
-body.addEventListener("click", (event) => {
-  const modified = isMac ? event.metaKey : event.ctrlKey;
-  if (!modified) {
-    handleLink(event, (href) => void followLink(href));
-    return;
-  }
-  // 修飾クリックのときは、リンクの通常動作を止める
-  event.preventDefault();
-  // 描画を待っている間は無視する
-  if (rendering) {
-    return;
-  }
-  const target = event.target instanceof Element ? event.target : null;
-  const block = (target !== null ? blockAt(target) : null) ?? nearestBlock(event.clientY);
-  if (block === null) {
-    return;
-  }
-  // コードブロックの中なら、クリックした位置のコードの行へ（囲いや余白の上なら、ブロックの開始行へ）
-  const lines = codeLinesOf(block);
-  const codeLine = lines !== null && target !== null && lines.pre.contains(target) ? codeLineAt(lines, event.clientY) : null;
-  void invoke("jump", { gen: shownGen, version: shownVersion, line: codeLine ?? block.startLine });
-});
-
+initClicks();
 initPathBar();
 initFind(body);
-
-updateHistoryButtons = initHistoryButtons(
-  () => void navigateHistory("go_back"),
-  () => void navigateHistory("go_forward"),
-);
-initSwipeGestures(
-  () => void navigateHistory("go_back"),
-  () => void navigateHistory("go_forward"),
-);
-void refreshHistoryAvailability();
+initHistory();
 
 startTheme();
 onThemeChange(() => {
-  void renderDiagrams(body, isCurrent(shownVersion)).then((drawn) => {
+  void renderDiagrams(body, isCurrent(view.version)).then((drawn) => {
     if (drawn) {
       rebuildTable();
     }
   });
 });
 
-/** j／k で動かす量（本文の1行の高さ 24px の3行分） */
-const LINE_STEP = 72;
-/** gg と数える、2回目の g までの時間 */
-const DOUBLE_G_MS = 1000;
-/** 直前に g を押した時刻（gg の1回目） */
-let lastG = 0;
-
-function scrollByInstant(top: number): void {
-  window.scrollBy({ top, behavior: "instant" });
-}
-
-/** パスの帯と検索の帯を除いた、見えている高さの半分 */
-function halfPage(): number {
-  return (window.innerHeight - topInset() - bottomInset()) / 2;
-}
-
-/**
- * Vim風のキー操作。プレビューのスクロールと検索だけを動かし、Neovimのカーソルは動かさない。
- * 扱ったら true を返す
- */
-function handleVimKey(event: KeyboardEvent): boolean {
-  const onlyCtrl = event.ctrlKey && !event.metaKey && !event.altKey;
-  if (onlyCtrl && (event.key === "d" || event.key === "u")) {
-    scrollByInstant(event.key === "d" ? halfPage() : -halfPage());
-    return true;
-  }
-  if (event.ctrlKey || event.metaKey || event.altKey) {
-    return false;
-  }
-  const previousG = lastG;
-  lastG = 0;
-  switch (event.key) {
-    case "j":
-      scrollByInstant(LINE_STEP);
-      return true;
-    case "k":
-      scrollByInstant(-LINE_STEP);
-      return true;
-    case "g":
-      if (event.timeStamp - previousG <= DOUBLE_G_MS && previousG !== 0) {
-        window.scrollTo({ top: 0, behavior: "instant" });
-      } else {
-        lastG = event.timeStamp;
-      }
-      return true;
-    case "G":
-      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
-      return true;
-    case "/":
-      openFind();
-      return true;
-    case "n":
-      stepFind(1);
-      return true;
-    case "N":
-      stepFind(-1);
-      return true;
-    default:
-      return false;
-  }
-}
-
-document.addEventListener("keydown", (event) => {
-  if (isFind(event)) {
-    event.preventDefault();
-    openFind();
-    return;
-  }
-  if (event.key === "Escape") {
-    closeFind();
-    return;
-  }
-  if (isBack(event)) {
-    event.preventDefault();
-    void navigateHistory("go_back");
-    return;
-  }
-  if (isForward(event)) {
-    event.preventDefault();
-    void navigateHistory("go_forward");
-    return;
-  }
-  // 検索窓に入力している間は、どのキーも文字として入力する
-  if (isTypingInFind(event)) {
-    return;
-  }
-  if (handleVimKey(event)) {
-    event.preventDefault();
-    return;
-  }
-  if (event.ctrlKey || event.metaKey || event.altKey) {
-    return;
-  }
-  if (event.key.toLowerCase() === "t") {
-    cycle();
-  }
-});
+initKeys();
 
 window.addEventListener("resize", rebuildTable);
 
