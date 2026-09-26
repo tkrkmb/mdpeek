@@ -5,9 +5,9 @@
     sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --mdsight-background: #ffffff;
   /* パスの帯の高さ（下の境界線を含む）。見出しへ移るときの余白にも使う */
-  --mdsight-path-height: 35px;
+  --mdsight-path-height: 39px;
   /* 検索の帯の高さ（下の境界線を含む） */
-  --mdsight-find-height: 35px;
+  --mdsight-find-height: 39px;
   --mdsight-nav-fg: #1f2328;
   --mdsight-nav-bg: rgba(31, 35, 40, 0.06);
   --mdsight-nav-bg-hover: rgba(31, 35, 40, 0.12);
