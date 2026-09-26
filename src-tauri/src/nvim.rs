@@ -42,27 +42,43 @@ impl Handler for NvimHandler {
 }
 
 /// キューに溜まっているもののうち、最後の本文を返す。
-fn newest(first: Value, queue: &mut UnboundedReceiver<Value>) -> Value {
+/// あわせて、表示中の世代（`shown`）から先に変わった世代のうち、最初の送信の
+/// `follow` が `false` のもの（`:MdSight` による切り替えなど）があったかを返す。
+/// 途中の本文を捨てても、窓を前面に出すかどうかの判断が変わらないようにするため。
+fn newest(first: Value, queue: &mut UnboundedReceiver<Value>, shown: Option<u64>) -> (Value, bool) {
+    let mut previous = shown;
+    let mut raise = false;
     let mut latest = first;
-    while let Ok(newer) = queue.try_recv() {
-        latest = newer;
+    loop {
+        let generation = field(&latest, "gen").and_then(Value::as_u64);
+        if generation != previous {
+            raise |= !follows(&latest);
+            previous = generation;
+        }
+        match queue.try_recv() {
+            Ok(newer) => latest = newer,
+            Err(_) => return (latest, raise),
+        }
     }
-    latest
+}
+
+/// `mdsight_content` の `follow`（対象ウィンドウ内の移動への追従か）
+fn follows(value: &Value) -> bool {
+    field(value, "follow").and_then(Value::as_bool).unwrap_or(false)
 }
 
 /// キューに届いた本文のうち、最新のものだけをHTMLに変換して送る。
 async fn render_queue(app: AppHandle, mut queue: UnboundedReceiver<Value>) {
     while let Some(payload) = queue.recv().await {
-        let payload = newest(payload, &mut queue);
+        let shown = app.state::<Documents>().current().map(|current| current.generation);
+        let (payload, raise) = newest(payload, &mut queue, shown);
         if let Some(document) = document_from(&payload) {
             // 対象世代が変わっていたら、自分(open_link/go_back/go_forward)による
-            // ものかどうかを確かめ、そうでなければ(:MdSightによる切り替えなど)
-            // リンクの履歴を空にして、隠れていれば窓を前に出す
-            let retargeted = app
-                .state::<Documents>()
-                .current()
-                .is_some_and(|current| current.generation != document.generation);
-            if retargeted && app.state::<History>().reset_if_unexpected(document.generation) {
+            // ものかどうかを確かめ、そうでなければリンクの履歴を空にする。
+            // そのうち:MdSightによる切り替えなどでは、隠れていれば窓を前に出す
+            // (対象ウィンドウ内の移動への追従では出さない)
+            let retargeted = shown.is_some_and(|generation| generation != document.generation);
+            if retargeted && app.state::<History>().reset_if_unexpected(document.generation) && raise {
                 crate::raise::show_without_focus(&app);
             }
             crate::publish(&app, document);
@@ -252,13 +268,50 @@ mod tests {
         assert_eq!(open_result(&Value::from(false)), None);
     }
 
-    #[test]
-    fn keeps_only_the_last_queued_content() {
+    fn content(gen: u64, version: u64, follow: bool) -> Value {
+        Value::Map(vec![
+            entry("gen", Value::from(gen)),
+            entry("version", Value::from(version)),
+            entry("follow", Value::from(follow)),
+        ])
+    }
+
+    /// キューに入れた本文を newest に渡し、(最後の版, 前面に出すか) を返す
+    fn drain(payloads: Vec<Value>, shown: u64) -> (u64, bool) {
         let (queue, mut incoming) = unbounded_channel();
-        for version in 1u64..=3 {
-            queue.send(Value::from(version)).expect("the queue is open");
+        for payload in payloads {
+            queue.send(payload).expect("the queue is open");
         }
         let first = incoming.try_recv().expect("a queued payload");
-        assert_eq!(newest(first, &mut incoming), Value::from(3u64));
+        let (latest, raise) = newest(first, &mut incoming, Some(shown));
+        (super::field(&latest, "version").and_then(Value::as_u64).expect("a version"), raise)
+    }
+
+    #[test]
+    fn keeps_only_the_last_queued_content() {
+        let payloads = (1u64..=3).map(|version| content(1, version, false)).collect();
+        assert_eq!(drain(payloads, 1), (3, false));
+    }
+
+    #[test]
+    fn raises_when_the_target_is_switched_by_the_command() {
+        assert_eq!(drain(vec![content(2, 5, false)], 1), (5, true));
+    }
+
+    #[test]
+    fn does_not_raise_when_following_the_window() {
+        assert_eq!(drain(vec![content(2, 5, true)], 1), (5, false));
+    }
+
+    #[test]
+    fn does_not_raise_when_an_edit_follows_a_window_move_in_the_same_batch() {
+        let payloads = vec![content(2, 5, true), content(2, 6, false)];
+        assert_eq!(drain(payloads, 1), (6, false));
+    }
+
+    #[test]
+    fn raises_when_a_command_switch_is_hidden_behind_a_window_move() {
+        let payloads = vec![content(2, 5, false), content(3, 6, true)];
+        assert_eq!(drain(payloads, 1), (6, true));
     }
 }
