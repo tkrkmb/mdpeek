@@ -49,7 +49,7 @@ If you have changed your data directory, replace `~/.local/share/nvim` with the 
 | `:MdSight` | Preview the current buffer. If the preview is already open, switch it to this buffer and bring a hidden window to the front (input stays in Neovim) |
 | `:MdSightClose` | Close the preview |
 
-Only normal buffers with a file name and `filetype` set to `markdown` can be previewed. The preview updates about 200 ms after you stop typing. It scrolls only when the block under the cursor leaves the screen, placing that block one third of the way down. The window title is `MdSight — Linked to Neovim`.
+Only normal buffers with a file name and `filetype` set to `markdown` can be previewed. The preview updates about 200 ms after you stop typing. It scrolls only when the block under the cursor leaves the screen, placing that block one third of the way down. Inside a code block, it follows the line rather than the block. The window title is `MdSight — Linked to Neovim`.
 
 When you search in Neovim (`/`, `?`, `*`, `#`), the preview highlights the same matches in blue, and the match under the cursor in a darker blue. `:noh` clears them. Matches that include Markdown syntax (such as `**bold**`) are not highlighted.
 
@@ -76,7 +76,7 @@ The window opens in the background and the command returns immediately. The exec
 | Copy button at the top right of a code block (shown on hover) | Copy the code |
 | `/`, `n` / `N` | Open find in page; go to the next / previous match (reopens the find bar with the last pattern if it was closed) |
 | Cmd+F (macOS), Ctrl+F (Linux) | Find in the page. Enter / Shift+Enter moves to the next / previous match, Esc closes. Patterns are written as in Neovim's `/` (such as `\<word\>`, `foo\\|bar`, `\v(a\|b)+`, `\zs`); `\c` / `\C` set the case, otherwise case is ignored unless the pattern has an uppercase letter. Diagrams and math are not searched |
-| Cmd+click (macOS), Ctrl+click (Linux) | Move the Neovim cursor to the first line of the clicked block |
+| Cmd+click (macOS), Ctrl+click (Linux) | Move the Neovim cursor to the first line of the clicked block (to the clicked line inside a code block) |
 | Click a relative `.md` / `.markdown` link | Open that file (and jump to `#heading` if given) |
 | Click an `http:` / `https:` link | Open it in the default browser |
 | ‹ › at the top left, Cmd+[ / Cmd+] (macOS), Alt+← / Alt+→ (Linux), two-finger horizontal swipe | Go back / forward through documents opened from links |
