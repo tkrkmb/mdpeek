@@ -16,6 +16,8 @@ use tauri::{AppHandle, Emitter, Manager};
 const DOCUMENT_EVENT: &str = "mdsight://document";
 /// カーソル行をフロントエンドへ届けるイベント名
 const CURSOR_EVENT: &str = "mdsight://cursor";
+/// Neovimの検索の一致をフロントエンドへ届けるイベント名
+const SEARCH_EVENT: &str = "mdsight://search";
 /// 読み直しの失敗など、利用者に知らせる問題を届けるイベント名（`null` で取り消し）
 const PROBLEM_EVENT: &str = "mdsight://problem";
 
@@ -76,6 +78,23 @@ pub struct Cursor {
     #[serde(rename = "gen")]
     pub generation: u64,
     pub line: u64,
+}
+
+/// Neovimの検索の一致1つ（行番号、一致した文字列、現在の一致か）
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SearchMatch {
+    pub line: u64,
+    pub text: String,
+    pub current: bool,
+}
+
+/// Neovimの検索の一致。`matches` が空なら強調を消す
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Search {
+    #[serde(rename = "gen")]
+    pub generation: u64,
+    pub version: u64,
+    pub matches: Vec<SearchMatch>,
 }
 
 /// リンクや履歴で開いた文書の、行き先を示す最小限の情報
@@ -180,6 +199,10 @@ impl Cursors {
     }
 }
 
+/// 起動直後の取りこぼしに備え、最新の検索の一致を保持する
+#[derive(Default)]
+pub struct Searches(Mutex<Option<Search>>);
+
 /// Neovimが先に終了して標準エラー出力のパイプが閉じていても、
 /// 書き込みの失敗でパニックしないようにする。
 fn report(message: &str) {
@@ -196,6 +219,12 @@ pub fn publish(app: &AppHandle, document: Document) {
 pub fn publish_cursor(app: &AppHandle, cursor: Cursor) {
     app.state::<Cursors>().accept(cursor);
     let _ = app.emit(CURSOR_EVENT, cursor);
+}
+
+/// 受け取った検索の一致を、そのままフロントエンドへ送る（描画は待たない）
+pub fn publish_search(app: &AppHandle, search: Search) {
+    *app.state::<Searches>().0.lock().expect("searches lock") = Some(search.clone());
+    let _ = app.emit(SEARCH_EVENT, search);
 }
 
 /// いま利用者に知らせている問題。切り離して動くときは標準エラー出力が見えないため、
@@ -231,6 +260,12 @@ fn current_document(documents: tauri::State<'_, Documents>) -> Option<Document> 
 #[tauri::command]
 fn current_cursor(cursors: tauri::State<'_, Cursors>) -> Option<Cursor> {
     cursors.current()
+}
+
+/// 起動直後に取りこぼした検索の一致を、フロントエンドが拾い直す。
+#[tauri::command]
+fn current_search(searches: tauri::State<'_, Searches>) -> Option<Search> {
+    searches.0.lock().expect("searches lock").clone()
 }
 
 /// プレビュー側の修飾クリックを、Neovimのカーソル移動に変える。
@@ -513,6 +548,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(Documents::default())
         .manage(Cursors::default())
+        .manage(Searches::default())
         .manage(Session::default())
         .manage(History::default())
         .manage(Problem::default())
@@ -522,6 +558,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             current_document,
             current_cursor,
+            current_search,
             resolve_image,
             jump,
             app_mode,

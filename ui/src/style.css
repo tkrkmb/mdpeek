@@ -6,7 +6,7 @@
   --mdsight-background: #ffffff;
   /* パスの帯の高さ（下の境界線を含む）。見出しへ移るときの余白にも使う */
   --mdsight-path-height: 39px;
-  /* 検索の帯の高さ（下の境界線を含む） */
+  /* 検索の帯の高さ（上の境界線を含む） */
   --mdsight-find-height: 39px;
   --mdsight-nav-fg: #1f2328;
   --mdsight-nav-bg: rgba(31, 35, 40, 0.06);
@@ -22,6 +22,9 @@
   --mdsight-find-hit-bg: #fff8c5;
   --mdsight-find-current-bg: #ffd33d;
   --mdsight-find-hit-fg: #1f2328;
+  --mdsight-nvim-hit-bg: #ddf4ff;
+  --mdsight-nvim-current-bg: #54aeff;
+  --mdsight-nvim-hit-fg: #1f2328;
 }
 
 :root[data-theme="dark"] {
@@ -40,6 +43,9 @@
   --mdsight-find-hit-bg: rgba(187, 128, 9, 0.4);
   --mdsight-find-current-bg: #d29922;
   --mdsight-find-hit-fg: #f0f6fc;
+  --mdsight-nvim-hit-bg: rgba(56, 139, 253, 0.3);
+  --mdsight-nvim-current-bg: #1f6feb;
+  --mdsight-nvim-hit-fg: #f0f6fc;
 }
 
 html,
@@ -302,6 +308,21 @@ html.mdsight-finding .mdsight-notice {
 .markdown-body mark.mdsight-hit-current {
   background-color: var(--mdsight-find-current-bg);
   color: #1f2328;
+}
+
+/* Neovimの検索の一致。ページ内検索と見分けられるように青系にし、現在の一致は濃い色にする */
+.markdown-body mark.mdsight-nvim-hit {
+  background-color: var(--mdsight-nvim-hit-bg);
+  color: var(--mdsight-nvim-hit-fg);
+}
+
+.markdown-body mark.mdsight-nvim-current {
+  background-color: var(--mdsight-nvim-current-bg);
+  color: #1f2328;
+}
+
+:root[data-theme="dark"] .markdown-body mark.mdsight-nvim-current {
+  color: #ffffff;
 }
 
 .mermaid-diagram {

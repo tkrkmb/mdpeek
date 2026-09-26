@@ -10,6 +10,7 @@ import { resolveImages } from "./images";
 import { handleLink } from "./links";
 import { renderMath } from "./math";
 import { initHistoryButtons, initSwipeGestures } from "./navigation";
+import { applyNvimSearch, type NvimSearch } from "./nvimsearch";
 import { flash, setProblem } from "./notice";
 import { initPathBar, showPath, topInset } from "./pathbar";
 import { buildTable, findBlock, type Block } from "./sourcepos";
@@ -61,6 +62,8 @@ let rendering = false;
 let pending: { gen: number; line: number } | null = null;
 /** リンクや履歴での移動先。まだ文書が届いていない間だけ保持する */
 let pendingNavigation: PendingNavigation | null = null;
+/** 最後に届いたNeovimの検索の一致。表示中の世代・版と一致し、描画が終わっているときだけ適用する */
+let latestSearch: NvimSearch | null = null;
 
 function isCurrent(version: number): () => boolean {
   return () => version === shownVersion;
@@ -119,6 +122,16 @@ function receiveCursor(gen: number, line: number): void {
     return;
   }
   followCursor(line);
+}
+
+function applySearchIfCurrent(): void {
+  if (latestSearch === null || rendering) {
+    return;
+  }
+  if (latestSearch.gen !== shownGen || latestSearch.version !== shownVersion) {
+    return;
+  }
+  applyNvimSearch(body, table, latestSearch);
 }
 
 function applyPendingCursor(): void {
@@ -235,6 +248,8 @@ function render(doc: Document | null): void {
     rebuildTable();
     rendering = false;
     applyPendingCursor();
+    // 描画を待っている間に届いた検索の一致も、ここで適用する
+    applySearchIfCurrent();
   });
 }
 
@@ -409,6 +424,11 @@ void listen<CursorEvent>("mdsight://cursor", (event) => {
   receiveCursor(event.payload.gen, event.payload.line);
 });
 
+void listen<NvimSearch>("mdsight://search", (event) => {
+  latestSearch = event.payload;
+  applySearchIfCurrent();
+});
+
 // 読み直しの失敗などは、切り離して動いていると端末に出ないので、ウィンドウに出す
 void listen<string | null>("mdsight://problem", (event) => {
   setProblem(event.payload);
@@ -417,6 +437,13 @@ void listen<string | null>("mdsight://problem", (event) => {
 // 起動直後に取りこぼした本文とカーソル行、問題を拾う
 void invoke<string | null>("current_problem").then(setProblem);
 void invoke<Document | null>("current_document").then(render);
+void invoke<NvimSearch | null>("current_search").then((search) => {
+  // イベントで新しいものが先に届いていれば、そちらを使う
+  if (search !== null && latestSearch === null) {
+    latestSearch = search;
+    applySearchIfCurrent();
+  }
+});
 void invoke<CursorEvent | null>("current_cursor").then((cursor) => {
   if (cursor !== null) {
     receiveCursor(cursor.gen, cursor.line);

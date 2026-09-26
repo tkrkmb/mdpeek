@@ -7,7 +7,7 @@ use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
 
-use crate::{render, Args, Cursor, Document, Documents, History, Session};
+use crate::{render, Args, Cursor, Document, Documents, History, Search, SearchMatch, Session};
 
 type Writer = Compat<WriteHalf<UnixStream>>;
 pub type Nvim = Neovim<Writer>;
@@ -33,6 +33,11 @@ impl Handler for NvimHandler {
             "mdsight_cursor" => {
                 if let Some(cursor) = args.first().and_then(cursor_from) {
                     crate::publish_cursor(&self.app, cursor);
+                }
+            }
+            "mdsight_search" => {
+                if let Some(search) = args.first().and_then(search_from) {
+                    crate::publish_search(&self.app, search);
                 }
             }
             "mdsight_close" => self.app.exit(0),
@@ -150,6 +155,31 @@ fn cursor_from(value: &Value) -> Option<Cursor> {
     })
 }
 
+/// `mdsight_search` の `{gen, version, matches}` を取り出す。形の合わない一致は捨てる。
+fn search_from(value: &Value) -> Option<Search> {
+    let entries: &[Value] = match field(value, "matches")? {
+        Value::Array(entries) => entries,
+        // Luaの空のテーブルは、空の辞書として届くことがある
+        Value::Map(entries) if entries.is_empty() => &[],
+        _ => return None,
+    };
+    let matches = entries
+        .iter()
+        .filter_map(|entry| {
+            Some(SearchMatch {
+                line: field(entry, "line")?.as_u64()?,
+                text: field(entry, "text")?.as_str()?.to_string(),
+                current: field(entry, "current").and_then(Value::as_bool).unwrap_or(false),
+            })
+        })
+        .collect();
+    Some(Search {
+        generation: field(value, "gen")?.as_u64()?,
+        version: field(value, "version")?.as_u64()?,
+        matches,
+    })
+}
+
 fn field<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     value
         .as_map()?
@@ -250,6 +280,48 @@ mod tests {
     fn rejects_a_cursor_without_a_line() {
         let value = Value::Map(vec![entry("gen", Value::from(3u64))]);
         assert!(super::cursor_from(&value).is_none());
+    }
+
+    #[test]
+    fn reads_a_search_notification() {
+        let value = Value::Map(vec![
+            entry("gen", Value::from(3u64)),
+            entry("version", Value::from(8u64)),
+            entry(
+                "matches",
+                Value::Array(vec![
+                    Value::Map(vec![
+                        entry("line", Value::from(2u64)),
+                        entry("text", Value::from("Page")),
+                        entry("current", Value::from(true)),
+                    ]),
+                    Value::Map(vec![entry("line", Value::from(5u64))]),
+                ]),
+            ),
+        ]);
+        let search = super::search_from(&value).expect("a search");
+        assert_eq!((search.generation, search.version), (3, 8));
+        // text の無い一致は捨てる
+        assert_eq!(
+            search.matches,
+            vec![crate::SearchMatch { line: 2, text: "Page".to_string(), current: true }]
+        );
+    }
+
+    #[test]
+    fn reads_an_empty_search_as_no_matches() {
+        let value = Value::Map(vec![
+            entry("gen", Value::from(3u64)),
+            entry("version", Value::from(8u64)),
+            entry("matches", Value::Array(vec![])),
+        ]);
+        assert!(super::search_from(&value).expect("a search").matches.is_empty());
+        let value = Value::Map(vec![
+            entry("gen", Value::from(3u64)),
+            entry("version", Value::from(8u64)),
+            entry("matches", Value::Map(vec![])),
+        ]);
+        assert!(super::search_from(&value).expect("a search").matches.is_empty());
     }
 
     #[test]

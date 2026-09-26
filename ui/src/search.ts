@@ -106,3 +106,19 @@ export function clearMarks(root: Element, className: string): void {
     parent.normalize();
   }
 }
+
+/**
+ * 文字列を、並んだ順に探す。それぞれ前の一致の後ろから探し、見つからなければ `null` にする
+ * （見つからなかったときは、次を探す位置を進めない）
+ */
+export function locateInOrder(text: string, needles: string[]): (Range | null)[] {
+  let from = 0;
+  return needles.map((needle) => {
+    const start = needle === "" ? -1 : text.indexOf(needle, from);
+    if (start === -1) {
+      return null;
+    }
+    from = start + needle.length;
+    return { start, end: from };
+  });
+}
