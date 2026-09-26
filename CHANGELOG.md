@@ -9,6 +9,8 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 
 ## [Unreleased]
 
+## [v0.12.0] - 2026-09-26
+
 ### Added
 
 - Inside code blocks, the preview follows the Neovim cursor line by line, and Cmd+click (Ctrl+click on Linux) jumps to the clicked line.
