@@ -11,6 +11,7 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 
 ### Added
 
+- Going back or forward returns to where you were reading in that document, instead of its top.
 - Find in page accepts Neovim search patterns (Vim regular expressions such as `\<word\>`, `foo\|bar`, `\v`, `\zs`, `\c`). Unsupported or invalid patterns show "Invalid pattern".
 
 ### Fixed

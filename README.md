@@ -78,7 +78,7 @@ The window opens in the background and the command returns immediately. The exec
 | Click an `http:` / `https:` link | Open it in the default browser |
 | ‹ › at the top left, Cmd+[ / Cmd+] (macOS), Alt+← / Alt+→ (Linux), two-finger horizontal swipe | Go back / forward through documents opened from links |
 
-When you follow a link in a Neovim preview, Neovim switches to the same file too. If Neovim cannot open it (for example, because of unsaved changes), a notification appears and the preview stays as it was. Switching the target with `:MdSight` clears the back/forward history.
+Going back or forward returns to where you were reading in that document. When you follow a link in a Neovim preview, Neovim switches to the same file too. If Neovim cannot open it (for example, because of unsaved changes), a notification appears and the preview stays as it was. Switching the target with `:MdSight` clears the back/forward history.
 
 The path of the shown file appears at the top of the window. If a link cannot be opened or the file cannot be reloaded, the reason appears at the bottom.
 
@@ -87,7 +87,6 @@ The path of the shown file appears at the top of the window. If a link cannot be
 - Raw HTML is not rendered.
 - Only relative and `https:` images are shown, and only png / jpg / jpeg / gif / webp / svg.
 - Scroll sync works per block, so it is approximate inside long paragraphs and tables.
-- Going back through links opens the document at the top (or at `#heading`); the previous reading position is not remembered.
 - On Linux Wayland, `:MdSight` may not bring a hidden preview to the front, because the OS does not allow raising a window without giving it focus.
 - The icon follows the preview theme (light / dark), but on Linux Wayland it may not change, because some environments do not use the window icon.
 
