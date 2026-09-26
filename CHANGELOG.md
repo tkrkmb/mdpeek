@@ -9,6 +9,8 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 
 ## [Unreleased]
 
+## [v0.10.0] - 2026-09-26
+
 ### Added
 
 - YAML front matter is shown as a table at the top, as on GitHub, instead of turning into a rule and a heading. If it is not valid YAML, it is shown as a code block.
