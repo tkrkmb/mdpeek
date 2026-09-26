@@ -7,7 +7,10 @@ use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
 
-use crate::{render, Args, Cursor, Document, Documents, History, Search, SearchMatch, Session};
+use crate::args::Args;
+use crate::history::History;
+use crate::render;
+use crate::state::{self, Cursor, Document, Documents, Search, SearchMatch, Session};
 
 type Writer = Compat<WriteHalf<UnixStream>>;
 pub type Nvim = Neovim<Writer>;
@@ -32,12 +35,12 @@ impl Handler for NvimHandler {
             }
             "mdsight_cursor" => {
                 if let Some(cursor) = args.first().and_then(cursor_from) {
-                    crate::publish_cursor(&self.app, cursor);
+                    state::publish_cursor(&self.app, cursor);
                 }
             }
             "mdsight_search" => {
                 if let Some(search) = args.first().and_then(search_from) {
-                    crate::publish_search(&self.app, search);
+                    state::publish_search(&self.app, search);
                 }
             }
             "mdsight_close" => self.app.exit(0),
@@ -86,7 +89,7 @@ async fn render_queue(app: AppHandle, mut queue: UnboundedReceiver<Value>) {
             if retargeted && app.state::<History>().reset_if_unexpected(document.generation) && raise {
                 crate::raise::show_without_focus(&app);
             }
-            crate::publish(&app, document);
+            state::publish(&app, document);
         }
     }
 }
@@ -125,9 +128,9 @@ pub async fn run(app: AppHandle, args: Args) -> Result<(), String> {
         document_from(&registered).ok_or_else(|| "register was rejected".to_string())?;
     // ジャンプ要求に答えられるように、接続を預けておく
     app.state::<Session>().open(nvim.clone());
-    crate::publish(&app, document);
+    state::publish(&app, document);
     if let Some(line) = field(&registered, "line").and_then(Value::as_u64) {
-        crate::publish_cursor(
+        state::publish_cursor(
             &app,
             Cursor {
                 generation: document_generation(&registered),
@@ -304,7 +307,7 @@ mod tests {
         // text の無い一致は捨てる
         assert_eq!(
             search.matches,
-            vec![crate::SearchMatch { line: 2, text: "Page".to_string(), current: true }]
+            vec![crate::state::SearchMatch { line: 2, text: "Page".to_string(), current: true }]
         );
     }
 

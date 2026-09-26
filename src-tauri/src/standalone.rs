@@ -6,8 +6,10 @@ use std::time::Duration;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Manager};
 
-use crate::image::is_markdown;
-use crate::{render, report, set_problem, Document, Documents};
+use crate::render;
+use crate::report;
+use crate::resolve::is_markdown;
+use crate::state::{self, set_problem, Document, Documents};
 
 /// いま監視しているファイルのウォッチャー。差し替えると、古い方の監視スレッドは自然に終わる。
 #[derive(Default)]
@@ -122,7 +124,7 @@ fn reload(app: &AppHandle, path: &Path) {
     }
     match std::fs::read_to_string(path) {
         Ok(markdown) => {
-            crate::publish(
+            state::publish(
                 app,
                 Document {
                     generation: current.generation,
@@ -174,7 +176,7 @@ pub fn file_name(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::{load, open};
-    use crate::image::is_markdown;
+    use crate::resolve::is_markdown;
     use std::fs;
     use std::path::{Path, PathBuf};
 
