@@ -7,6 +7,7 @@ use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use tauri::{AppHandle, Manager};
 
@@ -119,12 +120,18 @@ pub fn listen(app: &AppHandle, document: &Path) {
     *app.state::<Listening>().0.lock().expect("listening lock") = Some(Owned { socket, task });
 }
 
-/// 要求を1つだけ読む。決まった要求でなければ false（接続は閉じる）
+/// 接続してから要求が届くまでに待つ時間。何も送らない相手を、いつまでも待たない
+const REQUEST_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// 要求を1つだけ読む。決まった要求でなければ、時間内に届かなくても false（接続は閉じる）
 async fn receive(stream: tokio::net::UnixStream) -> bool {
     use tokio::io::AsyncReadExt;
     let mut buffer = [0u8; REQUEST.len()];
     let mut stream = stream.take(REQUEST.len() as u64);
-    stream.read_exact(&mut buffer).await.is_ok() && buffer == REQUEST
+    matches!(
+        tokio::time::timeout(REQUEST_TIMEOUT, stream.read_exact(&mut buffer)).await,
+        Ok(Ok(_))
+    ) && buffer == REQUEST
 }
 
 /// 最小化を解いて、窓を前面に出し、フォーカスを移す
@@ -184,8 +191,30 @@ pub fn stop(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::socket_name;
+    use super::{receive, socket_name};
     use std::path::Path;
+    use std::time::{Duration, Instant};
+    use tokio::io::AsyncWriteExt;
+
+    #[test]
+    fn accepts_the_raise_request() {
+        tauri::async_runtime::block_on(async {
+            let (mut client, server) = tokio::net::UnixStream::pair().expect("a socket pair");
+            client.write_all(b"raise\n").await.expect("a request");
+            assert!(receive(server).await);
+        });
+    }
+
+    #[test]
+    fn gives_up_on_a_peer_that_sends_nothing() {
+        tauri::async_runtime::block_on(async {
+            // client を開いたまま何も送らない
+            let (_client, server) = tokio::net::UnixStream::pair().expect("a socket pair");
+            let started = Instant::now();
+            assert!(!receive(server).await);
+            assert!(started.elapsed() < Duration::from_secs(3));
+        });
+    }
 
     #[test]
     fn names_the_same_document_the_same_way() {
