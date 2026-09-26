@@ -6,6 +6,7 @@ use std::time::Duration;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Manager};
 
+use crate::image::is_markdown;
 use crate::{render, report, set_problem, Document, Documents};
 
 /// いま監視しているファイルのウォッチャー。差し替えると、古い方の監視スレッドは自然に終わる。
@@ -29,13 +30,7 @@ fn read(path: &Path) -> Result<(PathBuf, String), String> {
 /// 指定されたファイルを読み、初期表示用の文書を作る。
 /// ファイルが存在しないか、拡張子が md／markdown でなければ失敗する。
 pub fn load(path: &Path) -> Result<Document, String> {
-    let (canonical, markdown) = read(path)?;
-    Ok(Document {
-        generation: 1,
-        version: 1,
-        path: canonical.to_string_lossy().into_owned(),
-        html: render::to_html(&markdown),
-    })
+    open(path, 1, 1)
 }
 
 /// リンクや履歴で開いた別の文書を、指定した世代・版で読み込む。
@@ -68,14 +63,6 @@ pub fn detach(path: &Path) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|err| format!("cannot start mdsight in the background: {err}"))
-}
-
-fn is_markdown(path: &Path) -> bool {
-    let extension = path
-        .extension()
-        .map(|found| found.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
-    extension == "md" || extension == "markdown"
 }
 
 /// 開いているファイルを監視し、変更されたら読み直して表示を更新する。
@@ -178,7 +165,7 @@ pub fn start_watching(app: &AppHandle, path: PathBuf) {
 }
 
 /// 知らせに出すための、パスの最後の部分
-fn file_name(path: &Path) -> String {
+pub fn file_name(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.display().to_string())
@@ -186,7 +173,8 @@ fn file_name(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_markdown, load, open};
+    use super::{load, open};
+    use crate::image::is_markdown;
     use std::fs;
     use std::path::{Path, PathBuf};
 

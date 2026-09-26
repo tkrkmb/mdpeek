@@ -18,6 +18,18 @@ pub fn resolve_markdown_link(base: &Path, raw: &str) -> Result<PathBuf, String> 
     resolve_with_extensions(base, raw, &MARKDOWN_EXTENSIONS)
 }
 
+/// 拡張子を小文字にしたもの（無ければ空）
+fn extension_of(path: &Path) -> String {
+    path.extension()
+        .map(|found| found.to_string_lossy().to_lowercase())
+        .unwrap_or_default()
+}
+
+/// Markdownのファイルとして開いてよい拡張子か
+pub fn is_markdown(path: &Path) -> bool {
+    MARKDOWN_EXTENSIONS.contains(&extension_of(path).as_str())
+}
+
 fn resolve_with_extensions(base: &Path, raw: &str, extensions: &[&str]) -> Result<PathBuf, String> {
     let decoded = percent_decode_str(raw).decode_utf8_lossy().to_string();
     // `join` は絶対パスを渡されると基準を置き換えてしまうので、相対パスだけを受け付ける
@@ -33,10 +45,7 @@ fn resolve_with_extensions(base: &Path, raw: &str, extensions: &[&str]) -> Resul
         return Err(format!("{} is not a file", resolved.display()));
     }
 
-    let extension = resolved
-        .extension()
-        .map(|found| found.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
+    let extension = extension_of(&resolved);
     if !extensions.contains(&extension.as_str()) {
         return Err(format!("{extension} is not an allowed extension"));
     }

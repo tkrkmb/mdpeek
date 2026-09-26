@@ -591,10 +591,7 @@ fn main() {
         Mode::File { path, foreground } => match standalone::load(&path) {
             // 同じファイルを開いている窓があれば、そちらを前面に出して終わる
             Ok(document) if raise::request(Path::new(&document.path)) => {
-                let name = Path::new(&document.path)
-                    .file_name()
-                    .map(|name| name.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| document.path.clone());
+                let name = standalone::file_name(Path::new(&document.path));
                 println!("MdSight: brought the window already showing {name} to the front");
                 std::process::exit(0);
             }
