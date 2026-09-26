@@ -1,7 +1,8 @@
 import { topInset } from "./pathbar";
 import { revealRect } from "./scroll";
+import { cancelMatches, findMatches } from "./matcher";
 import { clearMarks, collectText, markRanges } from "./search";
-import { compileVimPattern, vimMatches } from "./vimregex";
+import { compileVimPattern } from "./vimregex";
 
 /** ページ内検索の一致と、現在の一致の `<mark>` のクラス（検索窓の `.mdsight-find` と重ならない名前にする） */
 const HIT = "mdsight-hit";
@@ -18,6 +19,10 @@ let matches: HTMLElement[][] = [];
 let current = -1;
 /** 検索語が正しくないか、対応しない書き方を含む */
 let invalid = false;
+/** 探すのに時間がかかりすぎたので、打ち切った */
+let timedOut = false;
+/** いちばん新しい検索の番号。結果が届いたときに、これより古い検索のものなら捨てる */
+let latestSearch = 0;
 /** 閉じる前に現在だった一致の順番。閉じた後の n／N で、ここから進める */
 let resumeAt = -1;
 
@@ -37,6 +42,8 @@ function showCount(): void {
     count.textContent = "";
   } else if (invalid) {
     count.textContent = "Invalid pattern";
+  } else if (timedOut) {
+    count.textContent = "Timed out";
   } else if (matches.length === 0) {
     count.textContent = "No results";
   } else {
@@ -76,30 +83,56 @@ function setCurrent(index: number, scroll: boolean): void {
   }
 }
 
+/** 強調を消し、一致が無い状態にする */
+function clearMatches(): void {
+  if (root !== null) {
+    clearMarks(root, HIT);
+  }
+  matches = [];
+  current = -1;
+}
+
 /**
  * 入力欄の文字列で探し直す。`keep` のときは現在の一致の順番を保ち（件数を超えたら最後）、
- * スクロールしない。そうでなければ、最初の一致を現在の一致にする
+ * スクロールしない。そうでなければ、最初の一致を現在の一致にする。
+ * 一致は別のスレッドで探すので、画面は止まらない。結果が届くまでは、前の強調を残す（ちらつかないように）
  */
-function search(keep: boolean): void {
+async function search(keep: boolean): Promise<void> {
   if (root === null || input === null) {
     return;
   }
+  const searching = ++latestSearch;
   const previous = current;
-  clearMarks(root, HIT);
-  matches = [];
-  current = -1;
-  invalid = false;
-  if (isOpen() && input.value !== "") {
-    const regex = compileVimPattern(input.value);
-    if (regex === null) {
-      invalid = true;
-    } else {
-      // ブロックごとに探し、ブロックをまたいでは一致させない
-      for (const block of Array.from(root.children)) {
-        const index = collectText(block);
-        matches.push(...markRanges(index, vimMatches(index.text, regex), HIT));
+  const regex = isOpen() && input.value !== "" ? compileVimPattern(input.value) : null;
+  invalid = isOpen() && input.value !== "" && regex === null;
+  if (regex === null) {
+    cancelMatches();
+    timedOut = false;
+    clearMatches();
+    showCount();
+    return;
+  }
+  // 本文が差し替わっていたら、前の強調はもう画面に無いので、移動の対象にしない
+  if (matches.some((marks) => marks[0]?.isConnected !== true)) {
+    matches = [];
+  }
+  // ブロックごとに探し、ブロックをまたいでは一致させない
+  const blocks = Array.from(root.children);
+  const texts = blocks.map((block) => collectText(block).text);
+  const result = await findMatches(regex, texts);
+  if (searching !== latestSearch || result.kind === "superseded") {
+    return;
+  }
+  clearMatches();
+  timedOut = result.kind === "timeout";
+  if (result.kind === "done") {
+    blocks.forEach((block, position) => {
+      // 探している間に本文が変わったブロックは、範囲がずれるので強調しない
+      const index = collectText(block);
+      if (block.parentElement === root && index.text === texts[position]) {
+        matches.push(...markRanges(index, result.ranges[position], HIT));
       }
-    }
+    });
   }
   if (matches.length === 0) {
     showCount();
@@ -135,7 +168,7 @@ export function openFind(): void {
   }
   if (!isOpen()) {
     toggleBox(true);
-    search(false);
+    void search(false);
   }
   input.focus();
   input.select();
@@ -148,14 +181,14 @@ export function closeFind(): void {
   resumeAt = current;
   toggleBox(false);
   input.blur();
-  search(false);
+  void search(false);
 }
 
 /**
  * n／N：次（`step` = 1）／前（`step` = -1）の一致へ移る。検索の帯を閉じていても、最後の検索語があれば、
  * 帯を開き直して（入力欄にはフォーカスを移さない）、閉じる前の一致から進める
  */
-export function stepFind(step: number): void {
+export async function stepFind(step: number): Promise<void> {
   if (input === null) {
     return;
   }
@@ -165,7 +198,7 @@ export function stepFind(step: number): void {
     }
     toggleBox(true);
     current = resumeAt;
-    search(true);
+    await search(true);
   }
   move(step);
 }
@@ -173,7 +206,7 @@ export function stepFind(step: number): void {
 /** 本文を差し替えた後に呼ぶ。検索窓が開いていれば、同じ文字列で探し直す */
 export function refreshFind(): void {
   if (isOpen()) {
-    search(true);
+    void search(true);
   }
 }
 
@@ -203,7 +236,7 @@ export function initFind(body: HTMLElement): void {
     field.focus();
   });
   box?.querySelector(".mdsight-find-close")?.addEventListener("click", closeFind);
-  input.addEventListener("input", () => search(false));
+  input.addEventListener("input", () => void search(false));
   input.addEventListener("keydown", (event) => {
     // 日本語入力の変換を確定する Enter では移らない
     if (event.isComposing) {

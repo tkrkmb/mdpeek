@@ -74,10 +74,10 @@ function handleVimKey(event: KeyboardEvent): boolean {
       openFind();
       return true;
     case "n":
-      stepFind(1);
+      void stepFind(1);
       return true;
     case "N":
-      stepFind(-1);
+      void stepFind(-1);
       return true;
     default:
       return false;
