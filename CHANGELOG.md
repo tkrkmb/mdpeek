@@ -9,6 +9,14 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 
 ## [Unreleased]
 
+### Added
+
+- Find in page accepts Neovim search patterns (Vim regular expressions such as `\<word\>`, `foo\|bar`, `\v`, `\zs`, `\c`). Unsupported or invalid patterns show "Invalid pattern".
+
+### Fixed
+
+- Find in page no longer matches across the end of one paragraph and the start of the next.
+
 ## [v0.10.0] - 2026-09-26
 
 ### Added

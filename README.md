@@ -72,7 +72,7 @@ The window opens in the background and the command returns immediately. The exec
 | Input | Action |
 | --- | --- |
 | `T` | Cycle the theme: system → light → dark |
-| Cmd+F (macOS), Ctrl+F (Linux) | Find in the page. Enter / Shift+Enter moves to the next / previous match, Esc closes. Matches ignore case unless the text has an uppercase letter. Diagrams and math are not searched |
+| Cmd+F (macOS), Ctrl+F (Linux) | Find in the page. Enter / Shift+Enter moves to the next / previous match, Esc closes. Patterns are written as in Neovim's `/` (such as `\<word\>`, `foo\\|bar`, `\v(a\|b)+`, `\zs`); `\c` / `\C` set the case, otherwise case is ignored unless the pattern has an uppercase letter. Diagrams and math are not searched |
 | Cmd+click (macOS), Ctrl+click (Linux) | Move the Neovim cursor to the first line of the clicked block |
 | Click a relative `.md` / `.markdown` link | Open that file (and jump to `#heading` if given) |
 | Click an `http:` / `https:` link | Open it in the default browser |
