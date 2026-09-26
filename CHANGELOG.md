@@ -9,6 +9,8 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 
 ## [Unreleased]
 
+## [v0.11.0] - 2026-09-26
+
 ### Added
 
 - A safe subset of raw HTML is rendered, as READMEs often use it: `details` / `summary`, `img` and `picture`, `kbd`, `br`, `sub` / `sup`, centered `p align="center"`, and a few more. Scripts, styles and event attributes are removed. Open `details` stay open while the text updates.
