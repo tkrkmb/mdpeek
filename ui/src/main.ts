@@ -160,7 +160,7 @@ function navigateTo(target: NavigationTarget, fragment: string | null): void {
   if (target.gen === shownGen) {
     goToFragmentOrTop(fragment);
   } else if (target.gen > shownGen) {
-    navigateTo(target, fragment);
+    pendingNavigation = { gen: target.gen, version: target.version, fragment };
   }
 }
 
