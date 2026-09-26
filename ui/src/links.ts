@@ -1,10 +1,10 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 
-const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+import { isRelativePath } from "./paths";
 
 /** 相対パスで、拡張子が md／markdown（末尾に #見出し が付いていてもよい）のリンクか */
 export function isRelativeMarkdownLink(href: string): boolean {
-  if (href === "" || SCHEME.test(href)) {
+  if (!isRelativePath(href)) {
     return false;
   }
   const path = href.split("#", 1)[0];

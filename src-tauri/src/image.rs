@@ -20,6 +20,10 @@ pub fn resolve_markdown_link(base: &Path, raw: &str) -> Result<PathBuf, String> 
 
 fn resolve_with_extensions(base: &Path, raw: &str, extensions: &[&str]) -> Result<PathBuf, String> {
     let decoded = percent_decode_str(raw).decode_utf8_lossy().to_string();
+    // `join` は絶対パスを渡されると基準を置き換えてしまうので、相対パスだけを受け付ける
+    if decoded.starts_with('/') {
+        return Err(format!("{raw} is not a relative path"));
+    }
     let candidate = base.join(decoded);
 
     // シンボリックリンクを実体のパスに解決する（存在しなければ失敗する）
@@ -128,6 +132,31 @@ mod tests {
         let base = workspace("markdown-link-rejects-image");
         write(&base.join("a.png"));
         assert!(resolve_markdown_link(&base, "a.png").is_err());
+    }
+
+    #[test]
+    fn rejects_an_absolute_path() {
+        let base = workspace("absolute");
+        let other = workspace("absolute-target");
+        write(&other.join("img/a.png"));
+        write(&other.join("other.md"));
+        let image = fs::canonicalize(other.join("img/a.png")).unwrap();
+        let markdown = fs::canonicalize(other.join("other.md")).unwrap();
+        assert!(resolve(&base, image.to_str().unwrap()).is_err());
+        assert!(resolve_markdown_link(&base, markdown.to_str().unwrap()).is_err());
+    }
+
+    #[test]
+    fn rejects_an_absolute_path_hidden_by_percent_encoding() {
+        let base = workspace("absolute-encoded");
+        assert!(resolve(&base, "%2Ftmp%2Fa.png").is_err());
+    }
+
+    #[test]
+    fn rejects_a_network_path() {
+        let base = workspace("network");
+        assert!(resolve(&base, "//host/a.png").is_err());
+        assert!(resolve_markdown_link(&base, "//host/a.md").is_err());
     }
 
     #[test]

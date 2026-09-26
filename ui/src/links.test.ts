@@ -39,6 +39,14 @@ describe("isRelativeMarkdownLink", () => {
     expect(isRelativeMarkdownLink("image.png")).toBe(false);
   });
 
+  test("rejects an absolute path", () => {
+    expect(isRelativeMarkdownLink("/notes/other.md")).toBe(false);
+  });
+
+  test("rejects a network path", () => {
+    expect(isRelativeMarkdownLink("//host/other.md")).toBe(false);
+  });
+
   test("rejects an empty href", () => {
     expect(isRelativeMarkdownLink("")).toBe(false);
   });

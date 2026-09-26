@@ -1,8 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
-function hasScheme(source: string): boolean {
-  return /^[a-z][a-z0-9+.-]*:/i.test(source) || source.startsWith("//");
-}
+import { isRelativePath } from "./paths";
 
 /** 表示できない画像は、代替テキストに置き換える */
 function showAlt(image: HTMLImageElement): void {
@@ -18,7 +16,7 @@ async function resolveSource(source: string, version: number): Promise<string | 
   if (/^https:/i.test(source)) {
     return source;
   }
-  if (hasScheme(source) || source === "") {
+  if (!isRelativePath(source)) {
     return null;
   }
   try {
@@ -75,7 +73,7 @@ export async function resolveImages(
     if (/^https:/i.test(source)) {
       continue;
     }
-    if (hasScheme(source) || source === "") {
+    if (!isRelativePath(source)) {
       showAlt(image);
       continue;
     }
