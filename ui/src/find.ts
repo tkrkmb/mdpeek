@@ -17,6 +17,8 @@ let matches: HTMLElement[][] = [];
 let current = -1;
 /** 検索語が正しくないか、対応しない書き方を含む */
 let invalid = false;
+/** 閉じる前に現在だった一致の順番。閉じた後の n／N で、ここから進める */
+let resumeAt = -1;
 
 function isOpen(): boolean {
   return box !== null && !box.hidden;
@@ -145,9 +147,29 @@ export function closeFind(): void {
   if (box === null || input === null || !isOpen()) {
     return;
   }
+  resumeAt = current;
   toggleBox(false);
   input.blur();
   search(false);
+}
+
+/**
+ * n／N：次（`step` = 1）／前（`step` = -1）の一致へ移る。検索の帯を閉じていても、最後の検索語があれば、
+ * 帯を開き直して（入力欄にはフォーカスを移さない）、閉じる前の一致から進める
+ */
+export function stepFind(step: number): void {
+  if (input === null) {
+    return;
+  }
+  if (!isOpen()) {
+    if (input.value === "") {
+      return;
+    }
+    toggleBox(true);
+    current = resumeAt;
+    search(true);
+  }
+  move(step);
 }
 
 /** 本文を差し替えた後に呼ぶ。検索窓が開いていれば、同じ文字列で探し直す */
