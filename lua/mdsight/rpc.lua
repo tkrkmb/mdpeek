@@ -28,7 +28,7 @@ function M.register(token, chan)
   state.chan = chan
   -- 起動前から検索の強調が出ていれば、登録の後に送る
   vim.schedule(function()
-    require("mdsight.init").update_search()
+    require("mdsight").update_search()
   end)
   return {
     gen = state.gen,
@@ -111,7 +111,7 @@ function M.open(gen, version, path)
     return false
   end
 
-  local mdsight = require("mdsight.init")
+  local mdsight = require("mdsight")
   local win = state.win
   local previous_buf = state.buf
 
