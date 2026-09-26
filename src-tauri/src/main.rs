@@ -180,6 +180,20 @@ impl HistoryState {
 }
 
 impl History {
+    /// これから自分の操作で対象世代が `generation` になることを、Neovimに頼む前に覚えておく。
+    /// 本文はNeovimの返事より先に届くことがあるので、返事を待ってからでは間に合わない。
+    fn expect(&self, generation: u64) {
+        self.0.lock().expect("history lock").expected_generation = Some(generation);
+    }
+
+    /// 頼みが失敗したら、`expect` で覚えたものを取り消す（本文が届いて使われていたら、何もしない）
+    fn cancel(&self, generation: u64) {
+        let mut state = self.0.lock().expect("history lock");
+        if state.expected_generation == Some(generation) {
+            state.expected_generation = None;
+        }
+    }
+
     /// `:MdSight` など、自分の操作以外で対象世代が変わったら、履歴を空にする。
     /// 自分の操作以外だったら true を返す。
     pub fn reset_if_unexpected(&self, generation: u64) -> bool {
@@ -499,16 +513,22 @@ async fn open_path(
         RuntimeMode::Nvim => {
             let nvim = session.get().ok_or_else(|| "not connected".to_string())?;
             let path = target.to_string_lossy().into_owned();
-            let (generation, version) =
-                nvim::open(nvim, current.generation, current.version, &path).await?;
-            // これから届く本文の世代は、自分のこの操作によるもの。
-            // nvim.rsが受け取ったとき、外部からの切り替えと区別するために覚えておく
-            history.0.lock().expect("history lock").expected_generation = Some(generation);
-            Ok(NavigationTarget {
-                generation,
-                version,
-                anchor: None,
-            })
+            // 開けたら、対象世代は必ず1つ進む。これから届く本文は自分のこの操作によるものなので、
+            // nvim.rsが受け取ったとき、外部からの切り替えと区別できるように、頼む前に覚えておく
+            // （本文は、Neovimの返事より先に届くことがある）
+            let expected = current.generation + 1;
+            history.expect(expected);
+            match nvim::open(nvim, current.generation, current.version, &path).await {
+                Ok((generation, version)) => Ok(NavigationTarget {
+                    generation,
+                    version,
+                    anchor: None,
+                }),
+                Err(message) => {
+                    history.cancel(expected);
+                    Err(message)
+                }
+            }
         }
     }
 }
@@ -851,6 +871,37 @@ mod tests {
         let state = history.0.lock().expect("history lock");
         assert_eq!(state.back.len(), 1, "own navigation should not clear history");
         assert_eq!(state.expected_generation, None, "the marker should be consumed");
+    }
+
+    #[test]
+    fn keeps_history_when_the_content_arrives_before_the_reply() {
+        let history = History::default();
+        history.0.lock().expect("history lock").back.push(entry("/tmp/a.md", None));
+
+        // 頼む前に覚えておけば、Neovimの返事より先に本文が届いても、自分の操作と見分けられる
+        history.expect(2);
+        assert!(!history.reset_if_unexpected(2));
+
+        assert_eq!(history.0.lock().expect("history lock").back.len(), 1);
+    }
+
+    #[test]
+    fn forgets_the_expectation_when_the_request_fails() {
+        let history = History::default();
+        history.expect(2);
+        history.cancel(2);
+        // 失敗した頼みの世代が、あとから別の切り替えで届いても、外部の操作として扱う
+        assert!(history.reset_if_unexpected(2));
+    }
+
+    #[test]
+    fn keeps_a_used_expectation_gone_when_cancelling() {
+        let history = History::default();
+        history.expect(2);
+        assert!(!history.reset_if_unexpected(2));
+        // 本文がすでに使い終えていたら、新しい目印を残さない
+        history.cancel(2);
+        assert_eq!(history.0.lock().expect("history lock").expected_generation, None);
     }
 
     #[test]
