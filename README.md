@@ -51,6 +51,8 @@ If you have changed your data directory, replace `~/.local/share/nvim` with the 
 
 Only normal buffers with a file name and `filetype` set to `markdown` can be previewed. The preview updates about 200 ms after you stop typing. It scrolls only when the block under the cursor leaves the screen, placing that block one third of the way down. The window title is `MdSight — Linked to Neovim`.
 
+When you search in Neovim (`/`, `?`, `*`, `#`), the preview highlights the same matches in blue, and the match under the cursor in a darker blue. `:noh` clears them. Matches that include Markdown syntax (such as `**bold**`) are not highlighted.
+
 When you move to another Markdown file in the previewed window (`gf`, `:e`, `Ctrl-O`, `:b`, and so on), the preview follows it without coming to the front. Moves in other windows are ignored. While that window shows a non-Markdown buffer, the preview keeps the last document and stops following the cursor. Deleting the previewed buffer with `:bd` keeps the preview open as long as the window remains; if the window closes too, the preview closes.
 
 ### Opening a file directly
