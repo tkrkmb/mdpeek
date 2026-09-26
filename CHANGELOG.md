@@ -20,6 +20,7 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 ### Fixed
 
 - In linked mode, following a link in the preview could occasionally clear the back / forward history and bring the window to the front.
+- Find in page no longer freezes the window on patterns that are slow to match, such as `.*.*.*x` on a long paragraph. The search runs in the background and stops after a second with "Timed out".
 
 ## [v0.11.0] - 2026-09-26
 

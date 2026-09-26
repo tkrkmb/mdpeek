@@ -75,7 +75,7 @@ The window opens in the background and the command returns immediately. The exec
 | `j` / `k`, `Ctrl-d` / `Ctrl-u`, `gg` / `G` | Scroll a little, half a page, or to the top / bottom (the Neovim cursor does not move) |
 | Copy button at the top right of a code block (shown on hover) | Copy the code |
 | `/`, `n` / `N` | Open find in page; go to the next / previous match (reopens the find bar with the last pattern if it was closed) |
-| Cmd+F (macOS), Ctrl+F (Linux) | Find in the page. Enter / Shift+Enter moves to the next / previous match, Esc closes. Patterns are written as in Neovim's `/` (such as `\<word\>`, `foo\\|bar`, `\v(a\|b)+`, `\zs`); `\c` / `\C` set the case, otherwise case is ignored unless the pattern has an uppercase letter. Diagrams and math are not searched |
+| Cmd+F (macOS), Ctrl+F (Linux) | Find in the page. Enter / Shift+Enter moves to the next / previous match, Esc closes. Patterns are written as in Neovim's `/` (such as `\<word\>`, `foo\\|bar`, `\v(a\|b)+`, `\zs`); `\c` / `\C` set the case, otherwise case is ignored unless the pattern has an uppercase letter. Diagrams and math are not searched. A pattern that takes more than a second to match is stopped and shows "Timed out" |
 | Cmd+click (macOS), Ctrl+click (Linux) | Move the Neovim cursor to the first line of the clicked block (to the clicked line inside a code block) |
 | Click a relative `.md` / `.markdown` link | Open that file (and jump to `#heading` if given) |
 | Click an `http:` / `https:` link | Open it in the default browser |
