@@ -17,6 +17,7 @@
   --mdsight-path-fg: #59636e;
   --mdsight-path-bg: #f6f8fa;
   --mdsight-path-border: #d1d9e0;
+  --mdsight-copied: #1a7f37;
   /* 検索の入力欄にフォーカスがあるときの枠の色 */
   --mdsight-focus: #0969da;
   --mdsight-find-hit-bg: #fff8c5;
@@ -40,6 +41,7 @@
   --mdsight-path-bg: #151b23;
   --mdsight-path-border: #3d444d;
   --mdsight-focus: #1f6feb;
+  --mdsight-copied: #3fb950;
   --mdsight-find-hit-bg: rgba(187, 128, 9, 0.4);
   --mdsight-find-current-bg: #d29922;
   --mdsight-find-hit-fg: #f0f6fc;
@@ -308,6 +310,60 @@ html.mdsight-finding .mdsight-notice {
 .markdown-body mark.mdsight-hit-current {
   background-color: var(--mdsight-find-current-bg);
   color: #1f2328;
+}
+
+/* コードブロックの枠と、右上のコピーのボタン。ボタンはマウスを載せている間とフォーカスがある間だけ出す */
+.mdsight-code {
+  position: relative;
+}
+
+.mdsight-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--mdsight-path-border);
+  border-radius: 6px;
+  background: var(--mdsight-path-bg);
+  color: var(--mdsight-path-fg);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mdsight-code:hover .mdsight-copy,
+.mdsight-copy:focus-visible,
+.mdsight-copy.mdsight-copied {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mdsight-copy:hover {
+  color: var(--mdsight-nav-fg);
+}
+
+.mdsight-copy svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mdsight-copied-icon,
+.mdsight-copied .mdsight-copy-icon {
+  display: none;
+}
+
+.mdsight-copied .mdsight-copied-icon {
+  display: block;
+  color: var(--mdsight-copied);
 }
 
 /* Neovimの検索の一致。ページ内検索と見分けられるように青系にし、現在の一致は濃い色にする */

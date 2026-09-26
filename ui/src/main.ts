@@ -3,6 +3,7 @@ import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
+import { addCopyButtons } from "./copy";
 import { renderDiagrams } from "./diagrams";
 import { bottomInset, closeFind, initFind, isTypingInFind, openFind, refreshFind, stepFind } from "./find";
 import { highlightCode } from "./highlight";
@@ -259,6 +260,8 @@ function render(doc: Document | null): void {
   body.innerHTML = doc.html;
   renderMath(body);
   highlightCode(body);
+  // 位置表を作る前に、コードブロックを枠で包む（data-sourcepos が枠へ移る）
+  addCopyButtons(body);
   // 検索窓が開いていれば、同じ文字列で探し直す（スクロールはしない）
   refreshFind();
   rebuildTable();

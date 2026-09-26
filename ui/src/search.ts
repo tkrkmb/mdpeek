@@ -1,5 +1,5 @@
-/** 検索の対象にしない要素（Mermaidの図と数式は、描画後の文字が元のコードと違うため） */
-const EXCLUDED = "[data-math-style], [data-mermaid-source], code.language-mermaid";
+/** 検索の対象にしない要素（Mermaidの図と数式は、描画後の文字が元のコードと違うため。コピーのボタンは本文ではないため） */
+const EXCLUDED = "[data-math-style], [data-mermaid-source], code.language-mermaid, .mdsight-copy";
 
 /** 要素の中の文字を1本の文字列につなげたもの。どの位置がどのテキストノードかを覚えておく */
 export type TextIndex = {
