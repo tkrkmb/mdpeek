@@ -1,4 +1,5 @@
 import { topInset } from "./pathbar";
+import { revealRect } from "./scroll";
 import { clearMarks, collectText, markRanges } from "./search";
 import { compileVimPattern, vimMatches } from "./vimregex";
 
@@ -54,14 +55,7 @@ function reveal(marks: HTMLElement[]): void {
   if (first === undefined) {
     return;
   }
-  const inset = topInset();
-  const bottom = window.innerHeight - bottomInset();
-  const rect = first.getBoundingClientRect();
-  if (rect.bottom > inset && rect.top < bottom) {
-    return;
-  }
-  const top = window.scrollY + rect.top - (inset + (bottom - inset) / 3);
-  window.scrollTo({ top, behavior: "instant" });
+  revealRect(first.getBoundingClientRect(), topInset(), bottomInset());
 }
 
 function setCurrent(index: number, scroll: boolean): void {

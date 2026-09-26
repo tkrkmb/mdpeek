@@ -15,6 +15,7 @@ import { initHistoryButtons, initSwipeGestures } from "./navigation";
 import { applyNvimSearch, type NvimSearch } from "./nvimsearch";
 import { flash, setProblem } from "./notice";
 import { initPathBar, showPath, topInset } from "./pathbar";
+import { revealRect } from "./scroll";
 import { buildTable, findBlock, type Block } from "./sourcepos";
 import { cycle, onThemeChange, start as startTheme } from "./theme";
 
@@ -110,18 +111,10 @@ function followCursor(line: number): void {
   if (block === null) {
     return;
   }
-  // パスの帯と、下端の検索の帯に隠れた部分は、見えていないものとして扱う
-  const inset = topInset();
-  const bottom = window.innerHeight - bottomInset();
   // コードブロックの中の行なら、ブロックではなくその行を対象にする
   const lines = line >= block.startLine && line <= block.endLine ? codeLinesOf(block) : null;
   const rect = (lines !== null ? codeLineRect(lines, line) : null) ?? block.element.getBoundingClientRect();
-  const visible = rect.bottom > inset && rect.top < bottom;
-  if (visible) {
-    return;
-  }
-  const top = window.scrollY + rect.top - (inset + (bottom - inset) / 3);
-  window.scrollTo({ top, behavior: "instant" });
+  revealRect(rect, topInset(), bottomInset());
 }
 
 function receiveCursor(gen: number, line: number): void {
