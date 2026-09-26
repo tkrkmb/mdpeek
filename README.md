@@ -87,7 +87,7 @@ The path of the shown file appears at the top of the window. If a link cannot be
 
 ## Known limitations
 
-- Raw HTML is not rendered.
+- Only a safe subset of raw HTML is rendered: `details`, `summary`, `img`, `picture`, `source`, `a`, `br`, `kbd`, `sub`, `sup`, `ins`, `del`, `s`, `b`, `i`, `strong`, `em`, `code`, and `align` on `p`, `div` and headings. Everything else (scripts, styles, event attributes, other tags) is removed.
 - Only relative and `https:` images are shown, and only png / jpg / jpeg / gif / webp / svg.
 - Scroll sync works per block, so it is approximate inside long paragraphs and tables.
 - On Linux Wayland, `:MdSight` may not bring a hidden preview to the front, because the OS does not allow raising a window without giving it focus.

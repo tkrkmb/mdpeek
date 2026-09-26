@@ -87,7 +87,7 @@ mdsight path/to/note.md
 
 ## 既知の制限
 
-- 生HTMLは描画しません。
+- 生HTMLは、安全な一部だけを描画します（`details`、`summary`、`img`、`picture`、`source`、`a`、`br`、`kbd`、`sub`、`sup`、`ins`、`del`、`s`、`b`、`i`、`strong`、`em`、`code`と、`p`・`div`・見出しの`align`）。それ以外（スクリプト、スタイル、イベントの属性、ほかの要素）は取り除きます。
 - 画像は、相対パスと`https:`のものだけを表示します。拡張子は png / jpg / jpeg / gif / webp / svg に限ります。
 - スクロール同期はブロック単位です。長い段落や表の中では位置がおおよそになります。
 - LinuxのWaylandでは、`:MdSight`で隠れたプレビューが前に出ないことがあります。フォーカスを移さずにウィンドウを前に出すことを、OSが許さないためです。
