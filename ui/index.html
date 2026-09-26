@@ -13,6 +13,22 @@
       </nav>
       <div class="mdsight-path-track"><span class="mdsight-path-text"></span></div>
     </header>
+    <div class="mdsight-find" id="mdsight-find" role="search" hidden>
+      <label class="mdsight-find-field">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.25" /><path d="M10.25 10.25 13.5 13.5" /></svg>
+        <input type="text" aria-label="Find in page" placeholder="Find in page" spellcheck="false" autocomplete="off" />
+        <span class="mdsight-find-count" aria-live="polite"></span>
+      </label>
+      <button type="button" class="mdsight-find-prev" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10 8 6l4 4" /></svg>
+      </button>
+      <button type="button" class="mdsight-find-next" aria-label="Next match" title="Next match (Enter)" disabled>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" /></svg>
+      </button>
+      <button type="button" class="mdsight-find-close" aria-label="Close" title="Close (Esc)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" /></svg>
+      </button>
+    </div>
     <div class="mdsight-notice" id="mdsight-notice" role="status" hidden></div>
     <article class="markdown-body"></article>
     <script type="module" src="/src/main.ts"></script>

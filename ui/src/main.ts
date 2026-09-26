@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 import { renderDiagrams } from "./diagrams";
+import { bottomInset, closeFind, initFind, isTypingInFind, openFind, refreshFind } from "./find";
 import { highlightCode } from "./highlight";
 import { resolveImages } from "./images";
 import { handleLink } from "./links";
@@ -95,14 +96,15 @@ function followCursor(line: number): void {
   if (block === null) {
     return;
   }
-  // パスの帯に隠れた部分は、見えていないものとして扱う
+  // パスの帯と、下端の検索の帯に隠れた部分は、見えていないものとして扱う
   const inset = topInset();
+  const bottom = window.innerHeight - bottomInset();
   const rect = block.element.getBoundingClientRect();
-  const visible = rect.bottom > inset && rect.top < window.innerHeight;
+  const visible = rect.bottom > inset && rect.top < bottom;
   if (visible) {
     return;
   }
-  const top = window.scrollY + rect.top - (inset + (window.innerHeight - inset) / 3);
+  const top = window.scrollY + rect.top - (inset + (bottom - inset) / 3);
   window.scrollTo({ top, behavior: "instant" });
 }
 
@@ -202,6 +204,8 @@ function render(doc: Document | null): void {
   body.innerHTML = doc.html;
   renderMath(body);
   highlightCode(body);
+  // 検索窓が開いていれば、同じ文字列で探し直す（スクロールはしない）
+  refreshFind();
   rebuildTable();
 
   const diagrams = renderDiagrams(body, current).then((drawn) => {
@@ -317,6 +321,10 @@ function isForward(event: KeyboardEvent): boolean {
   return isMac ? event.metaKey && event.key === "]" : event.altKey && event.key === "ArrowRight";
 }
 
+function isFind(event: KeyboardEvent): boolean {
+  return (isMac ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "f";
+}
+
 body.addEventListener("click", (event) => {
   const modified = isMac ? event.metaKey : event.ctrlKey;
   if (!modified) {
@@ -338,6 +346,7 @@ body.addEventListener("click", (event) => {
 });
 
 initPathBar();
+initFind(body);
 
 updateHistoryButtons = initHistoryButtons(
   () => void navigateHistory("go_back"),
@@ -359,6 +368,15 @@ onThemeChange(() => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (isFind(event)) {
+    event.preventDefault();
+    openFind();
+    return;
+  }
+  if (event.key === "Escape") {
+    closeFind();
+    return;
+  }
   if (isBack(event)) {
     event.preventDefault();
     void navigateHistory("go_back");
@@ -370,6 +388,10 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (event.ctrlKey || event.metaKey || event.altKey) {
+    return;
+  }
+  // 検索窓に入力している間は、テーマを切り替えない
+  if (isTypingInFind(event)) {
     return;
   }
   if (event.key.toLowerCase() === "t") {

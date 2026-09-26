@@ -1,0 +1,108 @@
+/** 検索の対象にしない要素（Mermaidの図と数式は、描画後の文字が元のコードと違うため） */
+const EXCLUDED = "[data-math-style], [data-mermaid-source], code.language-mermaid";
+
+/** 要素の中の文字を1本の文字列につなげたもの。どの位置がどのテキストノードかを覚えておく */
+export type TextIndex = {
+  text: string;
+  nodes: { node: Text; start: number }[];
+};
+
+/** 文字列の中の位置 [start, end) */
+export type Range = {
+  start: number;
+  end: number;
+};
+
+export function collectText(root: Element): TextIndex {
+  const nodes: { node: Text; start: number }[] = [];
+  let text = "";
+  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (node instanceof Element) {
+        return node.matches(EXCLUDED) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    const content = (node as Text).data;
+    nodes.push({ node: node as Text, start: text.length });
+    text += content;
+  }
+  return { text, nodes };
+}
+
+/** 入力に大文字が含まれるときだけ、大文字と小文字を区別する */
+export function isCaseSensitive(query: string): boolean {
+  return query !== query.toLowerCase();
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * 文字列そのもの（正規表現ではない）の一致を、前から重ならないように探す。
+ * `sensitive` を省いたときは smartcase にする
+ */
+export function findAll(text: string, query: string, sensitive = isCaseSensitive(query)): Range[] {
+  if (query === "") {
+    return [];
+  }
+  // 大文字・小文字を無視しても、文字列の長さが変わらないように、正規表現の i で比べる
+  const pattern = new RegExp(escapeRegExp(query), sensitive ? "gu" : "giu");
+  const found: Range[] = [];
+  for (const match of text.matchAll(pattern)) {
+    found.push({ start: match.index, end: match.index + match[0].length });
+  }
+  return found;
+}
+
+/**
+ * 一致した文字を `<mark class="...">` で包む。
+ * 要素をまたぐ一致は、テキストノードごとに分けて包む。一致ごとの `<mark>` の配列を返す
+ */
+export function markRanges(index: TextIndex, ranges: Range[], className: string): HTMLElement[][] {
+  const marks: HTMLElement[][] = ranges.map(() => []);
+  for (const { node, start } of index.nodes) {
+    const end = start + node.data.length;
+    // このテキストノードにかかる部分を集め、後ろから包む（前の位置がずれないように）
+    const pieces: { from: number; to: number; match: number }[] = [];
+    ranges.forEach((range, match) => {
+      const from = Math.max(range.start, start);
+      const to = Math.min(range.end, end);
+      if (from < to) {
+        pieces.push({ from: from - start, to: to - start, match });
+      }
+    });
+    for (const piece of pieces.reverse()) {
+      if (piece.to < node.data.length) {
+        node.splitText(piece.to);
+      }
+      const target = piece.from > 0 ? node.splitText(piece.from) : node;
+      const mark = node.ownerDocument.createElement("mark");
+      mark.className = className;
+      target.replaceWith(mark);
+      mark.appendChild(target);
+      // 1つのテキストノードにかかる部分は一致ごとに1つだけなので、ノードの順に足せば出現順になる
+      marks[piece.match].push(mark);
+    }
+  }
+  return marks;
+}
+
+/** `markRanges` で包んだ `<mark>` を外し、元のテキストに戻す */
+export function clearMarks(root: Element, className: string): void {
+  const parents = new Set<Node>();
+  for (const mark of Array.from(root.querySelectorAll(`mark.${className}`))) {
+    const parent = mark.parentNode;
+    if (parent === null) {
+      continue;
+    }
+    mark.replaceWith(...Array.from(mark.childNodes));
+    parents.add(parent);
+  }
+  for (const parent of parents) {
+    parent.normalize();
+  }
+}

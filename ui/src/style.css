@@ -6,6 +6,8 @@
   --mdsight-background: #ffffff;
   /* パスの帯の高さ（下の境界線を含む）。見出しへ移るときの余白にも使う */
   --mdsight-path-height: 35px;
+  /* 検索の帯の高さ（下の境界線を含む） */
+  --mdsight-find-height: 35px;
   --mdsight-nav-fg: #1f2328;
   --mdsight-nav-bg: rgba(31, 35, 40, 0.06);
   --mdsight-nav-bg-hover: rgba(31, 35, 40, 0.12);
@@ -15,6 +17,11 @@
   --mdsight-path-fg: #59636e;
   --mdsight-path-bg: #f6f8fa;
   --mdsight-path-border: #d1d9e0;
+  /* 検索の入力欄にフォーカスがあるときの枠の色 */
+  --mdsight-focus: #0969da;
+  --mdsight-find-hit-bg: #fff8c5;
+  --mdsight-find-current-bg: #ffd33d;
+  --mdsight-find-hit-fg: #1f2328;
 }
 
 :root[data-theme="dark"] {
@@ -29,6 +36,10 @@
   --mdsight-path-fg: #9198a1;
   --mdsight-path-bg: #151b23;
   --mdsight-path-border: #3d444d;
+  --mdsight-focus: #1f6feb;
+  --mdsight-find-hit-bg: rgba(187, 128, 9, 0.4);
+  --mdsight-find-current-bg: #d29922;
+  --mdsight-find-hit-fg: #f0f6fc;
 }
 
 html,
@@ -42,6 +53,7 @@ html {
   /* ページ内の見出しへ移ったとき、パスの帯に隠れないようにする */
   scroll-padding-top: var(--mdsight-path-height);
 }
+
 
 /* 表示中の文書のパス。窓の一番上に留め、本文とは違う窓の部品として見せる。
    ブラウザのアドレスバーと同じく、左端に戻る／進む、その右にパスを並べる */
@@ -160,6 +172,136 @@ html {
 
 .mdsight-notice[hidden] {
   display: none;
+}
+
+/* ページ内検索の帯。窓の下端に、横幅いっぱいに重ねる */
+.mdsight-find {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  box-sizing: border-box;
+  height: var(--mdsight-find-height);
+  padding: 0 8px;
+  border-top: 1px solid var(--mdsight-path-border);
+  background-color: var(--mdsight-path-bg);
+  color: var(--mdsight-path-fg);
+  /* パスの帯と同じ字体と大きさにする */
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.mdsight-find[hidden] {
+  display: none;
+}
+
+/* 開いている間は、本文の末尾を帯の分だけ延ばし、知らせの帯は検索の帯の上に積む */
+html.mdsight-finding .markdown-body {
+  padding-bottom: calc(48px + var(--mdsight-find-height));
+}
+
+html.mdsight-finding .mdsight-notice {
+  bottom: var(--mdsight-find-height);
+}
+
+/* 虫眼鏡、入力、件数を1つの枠に収める。戻る／進むのボタンと同じ淡い塗りと角丸にし、
+   フォーカス中だけ細い線で囲む */
+.mdsight-find-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 26px;
+  margin-right: 2px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background-color: var(--mdsight-nav-bg);
+  cursor: text;
+}
+
+.mdsight-find-field:focus-within {
+  box-shadow: inset 0 0 0 1px var(--mdsight-focus);
+}
+
+.mdsight-find-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--mdsight-nav-fg);
+  font: inherit;
+}
+
+.mdsight-find-field input::placeholder {
+  color: var(--mdsight-path-fg);
+}
+
+.mdsight-find-count {
+  flex: none;
+  color: var(--mdsight-path-fg);
+  white-space: nowrap;
+}
+
+.mdsight-find svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mdsight-find-field svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--mdsight-path-fg);
+}
+
+/* 前／次と閉じるは、戻る／進むのボタンと同じ見た目にする */
+.mdsight-find button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: var(--mdsight-nav-bg);
+  color: var(--mdsight-nav-fg);
+  cursor: pointer;
+}
+
+.mdsight-find button:not(:disabled):hover {
+  background: var(--mdsight-nav-bg-hover);
+}
+
+.mdsight-find button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+
+/* ページ内検索の一致。現在の一致は濃い色にする */
+.markdown-body mark.mdsight-hit {
+  background-color: var(--mdsight-find-hit-bg);
+  color: var(--mdsight-find-hit-fg);
+}
+
+.markdown-body mark.mdsight-hit-current {
+  background-color: var(--mdsight-find-current-bg);
+  color: #1f2328;
 }
 
 .mermaid-diagram {
