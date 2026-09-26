@@ -9,7 +9,7 @@ use std::sync::Mutex;
 
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
 /// 最新の本文をフロントエンドへ届けるイベント名
@@ -97,12 +97,21 @@ pub struct Search {
     pub matches: Vec<SearchMatch>,
 }
 
-/// リンクや履歴で開いた文書の、行き先を示す最小限の情報
+/// 文書で読んでいた位置。フロントエンドの「画面の上端付近にあるブロックのソース行と、画面内でのオフセット」
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+pub struct Anchor {
+    pub line: u64,
+    pub offset: f64,
+}
+
+/// リンクや履歴で開いた文書の、行き先を示す最小限の情報。
+/// 戻る／進むで開いたときは、その文書で読んでいた位置も返す
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct NavigationTarget {
     #[serde(rename = "gen")]
     pub generation: u64,
     pub version: u64,
+    pub anchor: Option<Anchor>,
 }
 
 impl From<&Document> for NavigationTarget {
@@ -110,8 +119,16 @@ impl From<&Document> for NavigationTarget {
         NavigationTarget {
             generation: document.generation,
             version: document.version,
+            anchor: None,
         }
     }
+}
+
+/// 履歴の1項目。文書のパスと、そこで読んでいた位置
+#[derive(Clone, Debug, PartialEq)]
+struct HistoryEntry {
+    path: PathBuf,
+    anchor: Option<Anchor>,
 }
 
 /// リンクで開いた文書の履歴。開いてよいパスを、Rust側だけが決める。
@@ -120,11 +137,46 @@ pub struct History(Mutex<HistoryState>);
 
 #[derive(Default)]
 struct HistoryState {
-    back: Vec<PathBuf>,
-    forward: Vec<PathBuf>,
+    back: Vec<HistoryEntry>,
+    forward: Vec<HistoryEntry>,
     /// Neovim連携モードで、直前に自分（open_link/go_back/go_forward）が
     /// 切り替えた先の世代。nvim.rsが、Neovimから届いた世代と比べるのに使う。
     expected_generation: Option<u64>,
+}
+
+impl HistoryState {
+    /// リンクで別の文書へ移った。離れる文書を戻る履歴に積み、進む履歴は空にする
+    fn follow_link(&mut self, left: HistoryEntry) {
+        self.back.push(left);
+        self.forward.clear();
+    }
+
+    /// 戻る（`back`）／進むで開く項目を取り出す
+    fn take(&mut self, back: bool) -> Option<HistoryEntry> {
+        if back {
+            self.back.pop()
+        } else {
+            self.forward.pop()
+        }
+    }
+
+    /// 開けたら、離れる文書を反対側の履歴に積む
+    fn arrive(&mut self, back: bool, left: HistoryEntry) {
+        if back {
+            self.forward.push(left);
+        } else {
+            self.back.push(left);
+        }
+    }
+
+    /// 開けなかったら、取り出した項目を元の履歴に戻す
+    fn put_back(&mut self, back: bool, entry: HistoryEntry) {
+        if back {
+            self.back.push(entry);
+        } else {
+            self.forward.push(entry);
+        }
+    }
 }
 
 impl History {
@@ -328,7 +380,7 @@ fn history_state(history: tauri::State<'_, History>) -> HistoryAvailability {
 
 /// 相対パスの `.md`／`.markdown` リンクを開く要求を受けたら、いまの文書の
 /// ディレクトリを基準に解決してから、新しい文書として開く。開けたら、いまの
-/// パスを戻る履歴に積み、進む履歴は空にする。
+/// パスと読んでいた位置（`anchor`）を戻る履歴に積み、進む履歴は空にする。
 #[tauri::command]
 async fn open_link(
     app: AppHandle,
@@ -338,6 +390,7 @@ async fn open_link(
     session: tauri::State<'_, Session>,
     href: String,
     version: u64,
+    anchor: Option<Anchor>,
 ) -> Result<NavigationTarget, String> {
     let current = documents.current().ok_or_else(|| "no document".to_string())?;
     if current.version != version {
@@ -350,13 +403,15 @@ async fn open_link(
 
     let navigation = open_path(&app, &documents, &history, *mode, &session, &target).await?;
 
-    let mut history = history.0.lock().expect("history lock");
-    history.back.push(PathBuf::from(current.path));
-    history.forward.clear();
+    history.0.lock().expect("history lock").follow_link(HistoryEntry {
+        path: PathBuf::from(current.path),
+        anchor,
+    });
     Ok(navigation)
 }
 
 /// 戻る／進むで、履歴にあるパスを開き直す。開けなかったら履歴は動かさない。
+/// `anchor` は、いま読んでいる位置。開けたら、移動先で読んでいた位置を返す
 #[tauri::command]
 async fn go_back(
     app: AppHandle,
@@ -364,8 +419,9 @@ async fn go_back(
     history: tauri::State<'_, History>,
     mode: tauri::State<'_, RuntimeMode>,
     session: tauri::State<'_, Session>,
+    anchor: Option<Anchor>,
 ) -> Result<NavigationTarget, String> {
-    navigate_history(&app, &documents, &history, *mode, &session, true).await
+    navigate_history(&app, &documents, &history, *mode, &session, true, anchor).await
 }
 
 #[tauri::command]
@@ -375,8 +431,9 @@ async fn go_forward(
     history: tauri::State<'_, History>,
     mode: tauri::State<'_, RuntimeMode>,
     session: tauri::State<'_, Session>,
+    anchor: Option<Anchor>,
 ) -> Result<NavigationTarget, String> {
-    navigate_history(&app, &documents, &history, *mode, &session, false).await
+    navigate_history(&app, &documents, &history, *mode, &session, false, anchor).await
 }
 
 async fn navigate_history(
@@ -386,38 +443,33 @@ async fn navigate_history(
     mode: RuntimeMode,
     session: &Session,
     back: bool,
+    anchor: Option<Anchor>,
 ) -> Result<NavigationTarget, String> {
     let current = documents.current().ok_or_else(|| "no document".to_string())?;
-    let target = {
-        let mut history = history.0.lock().expect("history lock");
-        let stack = if back {
-            &mut history.back
-        } else {
-            &mut history.forward
-        };
-        stack.pop().ok_or_else(|| "no more history".to_string())?
-    };
+    let target = history
+        .0
+        .lock()
+        .expect("history lock")
+        .take(back)
+        .ok_or_else(|| "no more history".to_string())?;
 
-    match open_path(app, documents, history, mode, session, &target).await {
+    match open_path(app, documents, history, mode, session, &target.path).await {
         Ok(navigation) => {
-            let mut history = history.0.lock().expect("history lock");
-            let push_to = if back {
-                &mut history.forward
-            } else {
-                &mut history.back
-            };
-            push_to.push(PathBuf::from(current.path));
-            Ok(navigation)
+            history.0.lock().expect("history lock").arrive(
+                back,
+                HistoryEntry {
+                    path: PathBuf::from(current.path),
+                    anchor,
+                },
+            );
+            Ok(NavigationTarget {
+                anchor: target.anchor,
+                ..navigation
+            })
         }
         Err(message) => {
-            // 開けなかったら、ポップしたものを元の履歴に戻す
-            let mut history = history.0.lock().expect("history lock");
-            let stack = if back {
-                &mut history.back
-            } else {
-                &mut history.forward
-            };
-            stack.push(target);
+            // 開けなかったら、取り出したものを元の履歴に戻す
+            history.0.lock().expect("history lock").put_back(back, target);
             Err(message)
         }
     }
@@ -452,7 +504,11 @@ async fn open_path(
             // これから届く本文の世代は、自分のこの操作によるもの。
             // nvim.rsが受け取ったとき、外部からの切り替えと区別するために覚えておく
             history.0.lock().expect("history lock").expected_generation = Some(generation);
-            Ok(NavigationTarget { generation, version })
+            Ok(NavigationTarget {
+                generation,
+                version,
+                anchor: None,
+            })
         }
     }
 }
@@ -607,7 +663,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_args, Cursor, Cursors, Document, Documents, History, Mode};
+    use super::{parse_args, Anchor, Cursor, Cursors, Document, Documents, History, HistoryEntry, HistoryState, Mode};
 
     fn document(generation: u64, version: u64) -> Document {
         Document {
@@ -731,12 +787,62 @@ mod tests {
         assert_eq!(cursor.line, 42);
     }
 
+    fn entry(path: &str, anchor: Option<Anchor>) -> HistoryEntry {
+        HistoryEntry {
+            path: std::path::PathBuf::from(path),
+            anchor,
+        }
+    }
+
+    fn at(line: u64, offset: f64) -> Option<Anchor> {
+        Some(Anchor { line, offset })
+    }
+
+    #[test]
+    fn remembers_where_each_document_was_read() {
+        let mut state = HistoryState::default();
+        // a.md を 10 行目まで読んでから、リンクで b.md へ
+        state.follow_link(entry("/tmp/a.md", at(10, 40.0)));
+        // b.md を 30 行目まで読んでから戻る
+        let back = state.take(true).expect("a.md");
+        assert_eq!(back, entry("/tmp/a.md", at(10, 40.0)));
+        state.arrive(true, entry("/tmp/b.md", at(30, 12.5)));
+        // a.md で 12 行目まで読み進めてから進む
+        let forward = state.take(false).expect("b.md");
+        assert_eq!(forward, entry("/tmp/b.md", at(30, 12.5)));
+        state.arrive(false, entry("/tmp/a.md", at(12, 0.0)));
+        assert_eq!(state.back, vec![entry("/tmp/a.md", at(12, 0.0))]);
+        assert!(state.forward.is_empty());
+    }
+
+    #[test]
+    fn keeps_the_entry_when_it_cannot_be_opened() {
+        let mut state = HistoryState::default();
+        state.follow_link(entry("/tmp/a.md", at(10, 40.0)));
+        let back = state.take(true).expect("a.md");
+        state.put_back(true, back);
+        assert_eq!(state.back, vec![entry("/tmp/a.md", at(10, 40.0))]);
+        assert!(state.forward.is_empty());
+    }
+
+    #[test]
+    fn a_new_link_drops_the_forward_history() {
+        let mut state = HistoryState::default();
+        state.follow_link(entry("/tmp/a.md", None));
+        let back = state.take(true).expect("a.md");
+        state.arrive(true, entry("/tmp/b.md", at(3, 0.0)));
+        assert_eq!(back.path, std::path::PathBuf::from("/tmp/a.md"));
+        state.follow_link(entry("/tmp/a.md", at(5, 0.0)));
+        assert!(state.forward.is_empty());
+        assert_eq!(state.back.len(), 1);
+    }
+
     #[test]
     fn keeps_history_for_its_own_expected_switch() {
         let history = History::default();
         {
             let mut state = history.0.lock().expect("history lock");
-            state.back.push(std::path::PathBuf::from("/tmp/a.md"));
+            state.back.push(entry("/tmp/a.md", None));
         }
         history.0.lock().expect("history lock").expected_generation = Some(2);
 
@@ -752,8 +858,8 @@ mod tests {
         let history = History::default();
         {
             let mut state = history.0.lock().expect("history lock");
-            state.back.push(std::path::PathBuf::from("/tmp/a.md"));
-            state.forward.push(std::path::PathBuf::from("/tmp/b.md"));
+            state.back.push(entry("/tmp/a.md", None));
+            state.forward.push(entry("/tmp/b.md", None));
         }
 
         // :MdSight による切り替えなど、自分の操作以外で世代が変わった

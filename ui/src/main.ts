@@ -28,9 +28,11 @@ type CursorEvent = {
   line: number;
 };
 
+/** 戻る／進むで開いたときは、その文書で読んでいた位置（`anchor`）も返ってくる */
 type NavigationTarget = {
   gen: number;
   version: number;
+  anchor: Anchor | null;
 };
 
 type HistoryAvailability = {
@@ -43,6 +45,7 @@ type PendingNavigation = {
   gen: number;
   version: number;
   fragment: string | null;
+  anchor: Anchor | null;
 };
 
 /** 画面の上端付近にあるブロックのソース行と、画面内でのオフセット */
@@ -62,6 +65,8 @@ let rendering = false;
 let pending: { gen: number; line: number } | null = null;
 /** リンクや履歴での移動先。まだ文書が届いていない間だけ保持する */
 let pendingNavigation: PendingNavigation | null = null;
+/** 戻る／進むで戻した位置。画像と図の描画が終わった時点で、もう一度合わせる */
+let settling: Anchor | null = null;
 /** 最後に届いたNeovimの検索の一致。表示中の世代・版と一致し、描画が終わっているときだけ適用する */
 let latestSearch: NvimSearch | null = null;
 
@@ -173,10 +178,21 @@ function matchPendingNavigation(gen: number, version: number): PendingNavigation
  */
 function navigateTo(target: NavigationTarget, fragment: string | null): void {
   if (target.gen === shownGen) {
-    goToFragmentOrTop(fragment);
+    arrive(fragment, target.anchor);
   } else if (target.gen > shownGen) {
-    pendingNavigation = { gen: target.gen, version: target.version, fragment };
+    pendingNavigation = { gen: target.gen, version: target.version, fragment, anchor: target.anchor };
   }
+}
+
+/** 移動先の文書で、読んでいた位置があればそこへ、なければ #見出し か先頭へ動く */
+function arrive(fragment: string | null, anchor: Anchor | null): void {
+  if (anchor === null) {
+    goToFragmentOrTop(fragment);
+    return;
+  }
+  restore(anchor);
+  // 描画を待っている間なら、画像と図で高さが変わった後に、もう一度合わせる
+  settling = rendering ? anchor : null;
 }
 
 /** #見出し があればその要素へ、なければ先頭へ移動する */
@@ -233,8 +249,9 @@ function render(doc: Document | null): void {
     }
   });
 
+  settling = null;
   if (navigation !== null) {
-    goToFragmentOrTop(navigation.fragment);
+    arrive(navigation.fragment, navigation.anchor);
   } else if (switched) {
     window.scrollTo({ top: 0 });
   } else if (anchor !== null) {
@@ -247,6 +264,10 @@ function render(doc: Document | null): void {
     }
     rebuildTable();
     rendering = false;
+    if (settling !== null) {
+      restore(settling);
+      settling = null;
+    }
     applyPendingCursor();
     // 描画を待っている間に届いた検索の一致も、ここで適用する
     applySearchIfCurrent();
@@ -302,7 +323,8 @@ async function followLink(href: string): Promise<void> {
   const fragment = hashIndex === -1 ? null : decodeURIComponent(href.slice(hashIndex + 1));
   const path = hashIndex === -1 ? href : href.slice(0, hashIndex);
   try {
-    const target = await invoke<NavigationTarget>("open_link", { href: path, version: shownVersion });
+    // いま読んでいる位置を渡し、戻ったときにそこへ戻れるようにする
+    const target = await invoke<NavigationTarget>("open_link", { href: path, version: shownVersion, anchor: capture() });
     navigateTo(target, fragment);
   } catch (error) {
     flash(`Cannot open the link: ${path} (${String(error)})`);
@@ -319,7 +341,7 @@ async function navigateHistory(command: "go_back" | "go_forward"): Promise<void>
     return;
   }
   try {
-    const target = await invoke<NavigationTarget>(command);
+    const target = await invoke<NavigationTarget>(command, { anchor: capture() });
     navigateTo(target, null);
   } catch (error) {
     flash(`${back ? "Cannot go back" : "Cannot go forward"} (${String(error)})`);
