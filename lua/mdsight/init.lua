@@ -95,13 +95,19 @@ local function target_shown()
     and vim.api.nvim_win_get_buf(state.win) == state.buf
 end
 
--- 対象ウィンドウの、いまのカーソル行を送る
-local function send_cursor_now()
+-- 対象ウィンドウのカーソル位置 { 行, 列 }。対象バッファを表示していないときと、取れないときは nil
+local function target_cursor()
   if not target_shown() then
-    return
+    return nil
   end
   local ok, position = pcall(vim.api.nvim_win_get_cursor, state.win)
-  if ok then
+  return ok and position or nil
+end
+
+-- 対象ウィンドウの、いまのカーソル行を送る
+local function send_cursor_now()
+  local position = target_cursor()
+  if position then
     send_cursor(position[1])
   end
 end
@@ -147,11 +153,8 @@ end
 
 -- カーソル位置を含む一致の番号。対象ウィンドウが対象バッファを表示していなければ 0
 local function current_match(matches)
-  if not target_shown() then
-    return 0
-  end
-  local ok, position = pcall(vim.api.nvim_win_get_cursor, state.win)
-  if not ok then
+  local position = target_cursor()
+  if not position then
     return 0
   end
   local line, column = position[1], position[2]
@@ -206,11 +209,8 @@ end
 
 -- 50ms間隔のスロットルでカーソル行を送る
 local function schedule_cursor()
-  if not target_shown() then
-    return
-  end
-  local ok, position = pcall(vim.api.nvim_win_get_cursor, state.win)
-  if not ok then
+  local position = target_cursor()
+  if not position then
     return
   end
   local line = position[1]
@@ -247,14 +247,19 @@ local function stop_content_timer()
   end
 end
 
--- Lua側の状態、autocmd、タイマーを解放する。世代と版は増え続けるので戻さない。
-local function release()
-  stop_cursor_timer()
-  stop_content_timer()
+-- 対象に張ったautocmdを外す
+local function detach_autocmds()
   if state.augroup then
     pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
     state.augroup = nil
   end
+end
+
+-- Lua側の状態、autocmd、タイマーを解放する。世代と版は増え続けるので戻さない。
+local function release()
+  stop_cursor_timer()
+  stop_content_timer()
+  detach_autocmds()
   state.token = nil
   state.chan = nil
   state.proc = nil
@@ -297,9 +302,7 @@ end
 
 -- buf が nil のときは、対象バッファに張るautocmdを張らない（対象バッファが削除された後）
 local function set_autocmds(buf)
-  if state.augroup then
-    pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
-  end
+  detach_autocmds()
   state.augroup = vim.api.nvim_create_augroup("mdsight", { clear = true })
   if buf then
     -- 本文が変わったら、デバウンスしてから送る
@@ -473,6 +476,9 @@ end
 
 -- rpc.lua が、リンクを辿る要求(open)の実装に使う
 M.check_buf = check_buf
+M.target_shown = target_shown
+M.target_cursor = target_cursor
+M.detach_autocmds = detach_autocmds
 M.set_autocmds = set_autocmds
 M.set_target = set_target
 

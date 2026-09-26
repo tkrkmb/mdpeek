@@ -1,16 +1,23 @@
 local state = require("mdsight.state")
+local mdsight = require("mdsight")
 
 -- アプリから呼べるのは、このモジュールが公開する関数だけにする。
 local M = {}
 
 local function cursor_line()
-  if state.win and vim.api.nvim_win_is_valid(state.win) then
-    local ok, pos = pcall(vim.api.nvim_win_get_cursor, state.win)
-    if ok then
-      return pos[1]
-    end
+  local position = mdsight.target_cursor()
+  return position and position[1] or 1
+end
+
+-- 世代と版が現在の値と一致し、対象ウィンドウが有効で対象バッファを表示しているか
+local function is_current_target(gen, version)
+  if type(gen) ~= "number" or type(version) ~= "number" then
+    return false
   end
-  return 1
+  if gen ~= state.gen or version ~= state.version then
+    return false
+  end
+  return mdsight.target_shown() and vim.api.nvim_buf_is_valid(state.buf)
 end
 
 -- トークンを検証してチャネルを記録し、初期状態を返す。
@@ -28,7 +35,7 @@ function M.register(token, chan)
   state.chan = chan
   -- 起動前から検索の強調が出ていれば、登録の後に送る
   vim.schedule(function()
-    require("mdsight").update_search()
+    mdsight.update_search()
   end)
   return {
     gen = state.gen,
@@ -41,19 +48,7 @@ end
 
 -- アプリからのジャンプ要求。すべての検証に通ったときだけカーソルを動かす。
 function M.jump(gen, version, line)
-  if type(gen) ~= "number" or type(version) ~= "number" or type(line) ~= "number" then
-    return false
-  end
-  if gen ~= state.gen or version ~= state.version then
-    return false
-  end
-  if not (state.win and vim.api.nvim_win_is_valid(state.win)) then
-    return false
-  end
-  if not (state.buf and vim.api.nvim_buf_is_valid(state.buf)) then
-    return false
-  end
-  if vim.api.nvim_win_get_buf(state.win) ~= state.buf then
+  if type(line) ~= "number" or not is_current_target(gen, version) then
     return false
   end
   if line < 1 or line > vim.api.nvim_buf_line_count(state.buf) then
@@ -92,35 +87,16 @@ end
 -- 指定されたファイルを開く。開いた後のバッファが対象にできるものであれば、それを
 -- 新しい対象にする。成功したら {gen, version} を、失敗したら false を返す。
 function M.open(gen, version, path)
-  if type(gen) ~= "number" or type(version) ~= "number" then
-    return false
-  end
-  if gen ~= state.gen or version ~= state.version then
-    return false
-  end
-  if not (state.win and vim.api.nvim_win_is_valid(state.win)) then
-    return false
-  end
-  if not (state.buf and vim.api.nvim_buf_is_valid(state.buf)) then
-    return false
-  end
-  if vim.api.nvim_win_get_buf(state.win) ~= state.buf then
-    return false
-  end
-  if not is_openable_markdown(path) then
+  if not is_current_target(gen, version) or not is_openable_markdown(path) then
     return false
   end
 
-  local mdsight = require("mdsight")
   local win = state.win
   local previous_buf = state.buf
 
   -- 開く前に、いまの対象のautocmdを外す
   -- (バッファがwipeされてBufWipeoutが走っても :MdSightClose にならないように)
-  if state.augroup then
-    pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
-    state.augroup = nil
-  end
+  mdsight.detach_autocmds()
 
   local opened = pcall(vim.api.nvim_win_call, win, function()
     vim.cmd.edit(vim.fn.fnameescape(path))
