@@ -26,6 +26,10 @@ function M.register(token, chan)
   end
 
   state.chan = chan
+  -- 起動前から検索の強調が出ていれば、登録の後に送る
+  vim.schedule(function()
+    require("mdsight.init").update_search()
+  end)
   return {
     gen = state.gen,
     version = state.version,

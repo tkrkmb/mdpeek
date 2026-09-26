@@ -38,6 +38,8 @@ local function socket()
   return sock
 end
 
+local update_search
+
 -- 対象バッファの全行を送る。版を1増やす。
 -- follow は、対象ウィンドウ内の移動への追従で対象世代が変わった直後の送信だけ true にする。
 local function send_content(follow)
@@ -52,6 +54,8 @@ local function send_content(follow)
     lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false),
     follow = follow == true,
   })
+  -- 版が変わったので、検索の一致も新しい本文で求め直して送る
+  update_search()
 end
 
 -- カーソル行を送る。直前に送った行と同じなら送らない。
@@ -100,6 +104,104 @@ local function send_cursor_now()
   if ok then
     send_cursor(position[1])
   end
+end
+
+-- 送る検索の一致の上限
+local MAX_SEARCH_MATCHES = 1000
+
+-- Neovimの検索と同じく 'ignorecase' と 'smartcase' に従う。
+-- matchbufline() は 'smartcase' を見ないので、検索語に大文字があれば \C を付けて補う
+-- （\ の後ろの文字と、\% \_ に続く文字は、大文字として数えない）
+local function search_pattern(pattern)
+  if vim.o.ignorecase and vim.o.smartcase then
+    local plain = pattern:gsub("\\[%%_].", ""):gsub("\\.", "")
+    if plain:find("%u") then
+      return "\\C" .. pattern
+    end
+  end
+  return pattern
+end
+
+-- 対象バッファの全行から、検索語の一致を求める。強調が消えているとき、検索語が空か正しくないとき、
+-- 対象バッファがないときは空にする
+local function find_matches(pattern)
+  if vim.v.hlsearch ~= 1 or pattern == "" or not (state.buf and vim.api.nvim_buf_is_valid(state.buf)) then
+    return {}
+  end
+  local ok, found = pcall(vim.fn.matchbufline, state.buf, search_pattern(pattern), 1, "$")
+  if not ok then
+    return {}
+  end
+  local matches = {}
+  for _, match in ipairs(found) do
+    -- 幅のない一致（^ など）は、強調できないので除く
+    if match.text ~= "" then
+      table.insert(matches, { line = match.lnum, byteidx = match.byteidx, text = match.text })
+      if #matches >= MAX_SEARCH_MATCHES then
+        break
+      end
+    end
+  end
+  return matches
+end
+
+-- カーソル位置を含む一致の番号。対象ウィンドウが対象バッファを表示していなければ 0
+local function current_match(matches)
+  if not target_shown() then
+    return 0
+  end
+  local ok, position = pcall(vim.api.nvim_win_get_cursor, state.win)
+  if not ok then
+    return 0
+  end
+  local line, column = position[1], position[2]
+  for index, match in ipairs(matches) do
+    if match.line > line then
+      break
+    end
+    if match.line == line and match.byteidx <= column and column < match.byteidx + #match.text then
+      return index
+    end
+  end
+  return 0
+end
+
+-- 検索語、強調の有無、対象世代、版、現在の一致のどれかが、前回送ったときから変わっていれば送る
+update_search = function()
+  if not state.chan then
+    return
+  end
+  local pattern = vim.fn.getreg("/")
+  local key = table.concat({
+    pattern,
+    tostring(vim.v.hlsearch),
+    tostring(vim.o.ignorecase),
+    tostring(vim.o.smartcase),
+    tostring(state.buf),
+    tostring(state.gen),
+    tostring(state.version),
+  }, "\n")
+  -- 一致は、検索語や本文が変わったときだけ求め直す
+  if key ~= state.search_key then
+    state.search_key = key
+    state.search_matches = find_matches(pattern)
+  end
+  local matches = state.search_matches or {}
+  local current = current_match(matches)
+  local sent = key .. "\n" .. current
+  if sent == state.search_sent then
+    return
+  end
+  state.search_sent = sent
+  local payload = {}
+  for index, match in ipairs(matches) do
+    payload[index] = { line = match.line, text = match.text, current = index == current }
+  end
+  pcall(vim.rpcnotify, state.chan, "mdsight_search", {
+    gen = state.gen,
+    version = state.version,
+    matches = payload,
+  })
 end
 
 -- 50ms間隔のスロットルでカーソル行を送る
@@ -160,6 +262,9 @@ local function release()
   state.win = nil
   state.last_line = nil
   state.away = false
+  state.search_key = nil
+  state.search_matches = nil
+  state.search_sent = nil
 end
 
 local set_target
@@ -235,6 +340,13 @@ local function set_autocmds(buf)
   vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter" }, {
     group = state.augroup,
     callback = follow,
+  })
+  -- 検索語、強調の有無、現在の一致が変わっていれば、プレビューに送る
+  vim.api.nvim_create_autocmd("SafeState", {
+    group = state.augroup,
+    callback = function()
+      update_search()
+    end,
   })
 end
 
@@ -352,6 +464,11 @@ function M.close()
       end
     end, 1000)
   end
+end
+
+-- rpc.lua が、登録の直後に検索の状態を送るのに使う
+function M.update_search()
+  update_search()
 end
 
 -- rpc.lua が、リンクを辿る要求(open)の実装に使う
