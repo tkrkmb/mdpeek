@@ -15,6 +15,10 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 - Footnotes (`[^1]`) and alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) are rendered.
 - Code blocks with a language name are syntax highlighted, in light and dark themes.
 
+### Fixed
+
+- Following a link or going back / forward in a Neovim preview could show an error even though the document opened, and ignored the `#heading` in the link.
+
 ## [v0.9.0] - 2026-09-25
 
 ### Changed
