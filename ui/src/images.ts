@@ -70,25 +70,15 @@ export async function resolveImages(
   }
   for (const image of Array.from(root.querySelectorAll("img"))) {
     const source = image.getAttribute("src") ?? "";
-    if (/^https:/i.test(source)) {
-      continue;
+    const url = await resolveSource(source, version);
+    // 解決できた（できなかった）時点で版を確認する
+    if (!isCurrent()) {
+      return;
     }
-    if (!isRelativePath(source)) {
+    if (url === null) {
       showAlt(image);
-      continue;
-    }
-    try {
-      const resolved = await invoke<string>("resolve_image", { path: source, version });
-      // 解決できた時点で版を確認する
-      if (!isCurrent()) {
-        return;
-      }
-      image.src = convertFileSrc(resolved);
-    } catch {
-      if (!isCurrent()) {
-        return;
-      }
-      showAlt(image);
+    } else if (url !== source) {
+      image.src = url;
     }
   }
 }
