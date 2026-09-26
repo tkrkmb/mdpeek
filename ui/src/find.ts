@@ -1,5 +1,6 @@
 import { topInset } from "./pathbar";
-import { clearMarks, collectText, findAll, markRanges } from "./search";
+import { clearMarks, collectText, markRanges } from "./search";
+import { compileVimPattern, vimMatches } from "./vimregex";
 
 /** ページ内検索の一致と、現在の一致の `<mark>` のクラス（検索窓の `.mdsight-find` と重ならない名前にする） */
 const HIT = "mdsight-hit";
@@ -14,6 +15,8 @@ let nextButton: HTMLButtonElement | null = null;
 /** 一致ごとの `<mark>`（要素をまたぐ一致は複数） */
 let matches: HTMLElement[][] = [];
 let current = -1;
+/** 検索語が正しくないか、対応しない書き方を含む */
+let invalid = false;
 
 function isOpen(): boolean {
   return box !== null && !box.hidden;
@@ -29,6 +32,8 @@ function showCount(): void {
   }
   if (input.value === "") {
     count.textContent = "";
+  } else if (invalid) {
+    count.textContent = "Invalid pattern";
   } else if (matches.length === 0) {
     count.textContent = "No results";
   } else {
@@ -83,9 +88,18 @@ function search(keep: boolean): void {
   clearMarks(root, HIT);
   matches = [];
   current = -1;
+  invalid = false;
   if (isOpen() && input.value !== "") {
-    const index = collectText(root);
-    matches = markRanges(index, findAll(index.text, input.value), HIT);
+    const regex = compileVimPattern(input.value);
+    if (regex === null) {
+      invalid = true;
+    } else {
+      // ブロックごとに探し、ブロックをまたいでは一致させない
+      for (const block of Array.from(root.children)) {
+        const index = collectText(block);
+        matches.push(...markRanges(index, vimMatches(index.text, regex), HIT));
+      }
+    }
   }
   if (matches.length === 0) {
     showCount();

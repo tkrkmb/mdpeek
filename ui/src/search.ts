@@ -16,6 +16,10 @@ export type Range = {
 export function collectText(root: Element): TextIndex {
   const nodes: { node: Text; start: number }[] = [];
   let text = "";
+  // ブロックそのものが図や数式のときも、中の文字を拾わない
+  if (root.matches(EXCLUDED)) {
+    return { text, nodes };
+  }
   const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (node instanceof Element) {
@@ -30,32 +34,6 @@ export function collectText(root: Element): TextIndex {
     text += content;
   }
   return { text, nodes };
-}
-
-/** 入力に大文字が含まれるときだけ、大文字と小文字を区別する */
-export function isCaseSensitive(query: string): boolean {
-  return query !== query.toLowerCase();
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * 文字列そのもの（正規表現ではない）の一致を、前から重ならないように探す。
- * `sensitive` を省いたときは smartcase にする
- */
-export function findAll(text: string, query: string, sensitive = isCaseSensitive(query)): Range[] {
-  if (query === "") {
-    return [];
-  }
-  // 大文字・小文字を無視しても、文字列の長さが変わらないように、正規表現の i で比べる
-  const pattern = new RegExp(escapeRegExp(query), sensitive ? "gu" : "giu");
-  const found: Range[] = [];
-  for (const match of text.matchAll(pattern)) {
-    found.push({ start: match.index, end: match.index + match[0].length });
-  }
-  return found;
 }
 
 /**
