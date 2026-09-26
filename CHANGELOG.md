@@ -14,6 +14,11 @@ To release a new version, rename the "Unreleased" heading to `## [vX.Y.Z] - YYYY
 - YAML front matter is shown as a table at the top, as on GitHub, instead of turning into a rule and a heading. If it is not valid YAML, it is shown as a code block.
 - Footnotes (`[^1]`) and alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) are rendered.
 - Code blocks with a language name are syntax highlighted, in light and dark themes.
+- The Neovim preview follows moves to another Markdown file in the previewed window (`gf`, `:e`, `Ctrl-O`, `:b`, and so on) without coming to the front. Moves in other windows are still ignored.
+
+### Changed
+
+- Deleting the previewed buffer with `:bd` no longer closes the preview while the previewed window remains; the preview follows the next Markdown file shown there.
 
 ### Fixed
 

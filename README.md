@@ -51,6 +51,8 @@ If you have changed your data directory, replace `~/.local/share/nvim` with the 
 
 Only normal buffers with a file name and `filetype` set to `markdown` can be previewed. The preview updates about 200 ms after you stop typing. It scrolls only when the block under the cursor leaves the screen, placing that block one third of the way down. The window title is `MdSight — Linked to Neovim`.
 
+When you move to another Markdown file in the previewed window (`gf`, `:e`, `Ctrl-O`, `:b`, and so on), the preview follows it without coming to the front. Moves in other windows are ignored. While that window shows a non-Markdown buffer, the preview keeps the last document and stops following the cursor. Deleting the previewed buffer with `:bd` keeps the preview open as long as the window remains; if the window closes too, the preview closes.
+
 ### Opening a file directly
 
 ```sh
@@ -83,7 +85,6 @@ The path of the shown file appears at the top of the window. If a link cannot be
 - Only relative and `https:` images are shown, and only png / jpg / jpeg / gif / webp / svg.
 - Scroll sync works per block, so it is approximate inside long paragraphs and tables.
 - Going back through links opens the document at the top (or at `#heading`); the previous reading position is not remembered.
-- The preview does not follow when you move to another file in Neovim with `gf` or `Ctrl-O`. Run `:MdSight` again.
 - On Linux Wayland, `:MdSight` may not bring a hidden preview to the front, because the OS does not allow raising a window without giving it focus.
 - The icon follows the preview theme (light / dark), but on Linux Wayland it may not change, because some environments do not use the window icon.
 
